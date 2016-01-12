@@ -342,7 +342,8 @@
   gEmbeddedTokenSpaceGuid.PcdAndroidFastbootUsbVendorId|0x18d1
   gEmbeddedTokenSpaceGuid.PcdAndroidFastbootUsbProductId|0xd00d
   gHiKeyTokenSpaceGuid.PcdAndroidFastbootNvmDevicePath|L"VenHw(b549f005-4bd4-4020-a0cb-06f42bda68c3)"
-  gHiKeyTokenSpaceGuid.PcdArmFastbootFlashLimit|"524288000"
+  # Flash limit 128M/time, for memory concern
+  gHiKeyTokenSpaceGuid.PcdArmFastbootFlashLimit|"134217728"
 
   #
   # HiKey Boot Image
