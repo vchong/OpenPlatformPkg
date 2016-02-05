@@ -48,6 +48,9 @@
 #define SERIAL_NUMBER_LENGTH      16
 #define BOOT_DEVICE_LENGTH        16
 
+#define HIKEY_ERASE_SIZE          (16 * 1024 * 1024)
+#define HIKEY_ERASE_BLOCKS        (HIKEY_ERASE_SIZE / EFI_PAGE_SIZE)
+
 typedef struct _FASTBOOT_PARTITION_LIST {
   LIST_ENTRY  Link;
   CHAR16      PartitionName[PARTITION_NAME_MAX_LENGTH];
@@ -543,11 +546,11 @@ HiKeyFastbootPlatformErasePartition (
   EFI_DISK_IO_PROTOCOL    *DiskIo;
   UINT32                   MediaId;
   UINT64                   Offset;
-  UINTN                    PartitionSize;
+  UINTN                    PartitionSize, ErasePageCount, EraseSize;
   FASTBOOT_PARTITION_LIST *Entry;
   CHAR16                   PartitionNameUnicode[60];
   BOOLEAN                  PartitionFound;
-  CHAR8                    Buffer[EFI_PAGE_SIZE];
+  CHAR8                   *Buffer;
 
   AsciiStrToUnicodeStr (PartitionName, PartitionNameUnicode);
 
@@ -597,15 +600,33 @@ HiKeyFastbootPlatformErasePartition (
     PartitionSize = 34 * BlockIo->Media->BlockSize;
   }
 
-  SetMem (Buffer, EFI_PAGE_SIZE, 0xff);
-  for (Offset = 0; Offset < PartitionSize; Offset += BlockIo->Media->BlockSize) {
-    Status = DiskIo->WriteDisk (DiskIo, MediaId, Offset, BlockIo->Media->BlockSize, (VOID *)&Buffer);
+  if (PartitionSize > HIKEY_ERASE_SIZE) {
+    ErasePageCount = HIKEY_ERASE_BLOCKS;
+    EraseSize = ErasePageCount * EFI_PAGE_SIZE;
+  } else {
+    ErasePageCount = (PartitionSize + EFI_PAGE_SIZE - 1) / EFI_PAGE_SIZE;
+    EraseSize = ErasePageCount * EFI_PAGE_SIZE;
+  }
+  Buffer = (CHAR8 *)AllocatePages (ErasePageCount);
+  if (Buffer == NULL)
+    return EFI_BUFFER_TOO_SMALL;
+  SetMem (Buffer, EraseSize, 0xff);
+
+  for (Offset = 0; Offset < PartitionSize; Offset += EraseSize) {
+    /* Check if it's the last erase region in the partition. */
+    if (Offset + EraseSize > PartitionSize) {
+      Status = DiskIo->WriteDisk (DiskIo, MediaId, Offset, PartitionSize - Offset, (VOID *)Buffer);
+    } else {
+      Status = DiskIo->WriteDisk (DiskIo, MediaId, Offset, EraseSize, (VOID *)Buffer);
+    }
     if (EFI_ERROR (Status)) {
       DEBUG ((EFI_D_ERROR, "%a: Fail to erase at address 0x%x\n", __func__, Offset));
-      return Status;
+      goto out;
     }
   }
-  return EFI_SUCCESS;
+out:
+  FreePages (Buffer, ErasePageCount);
+  return Status;
 }
 
 EFI_STATUS
