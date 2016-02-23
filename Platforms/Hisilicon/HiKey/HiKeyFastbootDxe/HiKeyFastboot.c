@@ -635,10 +635,60 @@ HiKeyFastbootPlatformGetVar (
   OUT CHAR8   *Value
   )
 {
+  EFI_STATUS               Status;
+  EFI_BLOCK_IO_PROTOCOL   *BlockIo;
+  UINT64                   PartitionSize;
+  FASTBOOT_PARTITION_LIST *Entry;
+  CHAR16                   PartitionNameUnicode[60];
+  BOOLEAN                  PartitionFound;
+
   if (!AsciiStrCmp (Name, "max-download-size")) {
     AsciiStrCpy (Value, FixedPcdGetPtr (PcdArmFastbootFlashLimit));
-  } else if (AsciiStrCmp (Name, "product")) {
+  } else if (!AsciiStrCmp (Name, "product")) {
     AsciiStrCpy (Value, FixedPcdGetPtr (PcdFirmwareVendor));
+  } else if ( !AsciiStrnCmp (Name, "partition-size", 14)) {
+    AsciiStrToUnicodeStr ((Name + 15), PartitionNameUnicode);
+    PartitionFound = FALSE;
+    Entry = (FASTBOOT_PARTITION_LIST *) GetFirstNode (&(mPartitionListHead));
+    while (!IsNull (&mPartitionListHead, &Entry->Link)) {
+      // Search the partition list for the partition named by PartitionName
+      if (StrCmp (Entry->PartitionName, PartitionNameUnicode) == 0) {
+        PartitionFound = TRUE;
+        break;
+      }
+
+     Entry = (FASTBOOT_PARTITION_LIST *) GetNextNode (&mPartitionListHead, &(Entry)->Link);
+    }
+    if (!PartitionFound) {
+      *Value = '\0';
+      return EFI_NOT_FOUND;
+    }
+
+    Status = gBS->OpenProtocol (
+                    Entry->PartitionHandle,
+                    &gEfiBlockIoProtocolGuid,
+                    (VOID **) &BlockIo,
+                    gImageHandle,
+                    NULL,
+                    EFI_OPEN_PROTOCOL_GET_PROTOCOL
+                    );
+    if (EFI_ERROR (Status)) {
+      DEBUG ((EFI_D_ERROR, "Fastboot platform: couldn't open Block IO for flash: %r\n", Status));
+      *Value = '\0';
+      return EFI_NOT_FOUND;
+    }
+
+    PartitionSize = (BlockIo->Media->LastBlock + 1) * BlockIo->Media->BlockSize;
+    DEBUG ((EFI_D_ERROR, "Fastboot platform: check for partition-size:%a 0X%llx\n", Name, PartitionSize ));
+    AsciiSPrint (Value, 12, "0x%llx", PartitionSize);
+  } else if ( !AsciiStrnCmp (Name, "partition-type", 14)) {
+      DEBUG ((EFI_D_ERROR, "Fastboot platform: check for partition-type:%a\n", (Name + 15) ));
+    if ( !AsciiStrnCmp  ( (Name + 15) , "system", 6) || !AsciiStrnCmp  ( (Name + 15) , "userdata", 8)
+            || !AsciiStrnCmp  ( (Name + 15) , "cache", 5)) {
+      AsciiStrCpy (Value, "ext4");
+    } else {
+      AsciiStrCpy (Value, "raw");
+    }
   } else {
     *Value = '\0';
   }
