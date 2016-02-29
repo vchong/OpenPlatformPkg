@@ -56,6 +56,32 @@ UsbPhyInit (
   MicroSecondDelay (20000);
 }
 
+STATIC
+VOID
+UartInit (
+  IN VOID
+  )
+{
+  UINT32     Val;
+
+  /* make UART1 out of reset */
+  MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_RSTDIS3, PERIPH_RST3_UART1);
+  MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CLKEN3, PERIPH_RST3_UART1);
+  /* make UART2 out of reset */
+  MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_RSTDIS3, PERIPH_RST3_UART2);
+  MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CLKEN3, PERIPH_RST3_UART2);
+  /* make UART3 out of reset */
+  MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_RSTDIS3, PERIPH_RST3_UART3);
+  MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CLKEN3, PERIPH_RST3_UART3);
+  /* make UART4 out of reset */
+  MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_RSTDIS3, PERIPH_RST3_UART4);
+  MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CLKEN3, PERIPH_RST3_UART4);
+
+  /* enable clock for BT/WIFI */
+  Val = MmioRead32 (PMUSSI_REG(0x1c)) | 0x40;
+  MmioWrite32 (PMUSSI_REG(0x1c), Val);
+}
+
 VOID
 EFIAPI
 HiKeyInitPeripherals (
@@ -67,11 +93,12 @@ HiKeyInitPeripherals (
   /* make I2C0/I2C1/I2C2/SPI0 out of reset */
   Bits = PERIPH_RST3_I2C0 | PERIPH_RST3_I2C1 | PERIPH_RST3_I2C2 | \
 	 PERIPH_RST3_SSP;
-  MmioWrite32 (SC_PERIPH_RSTDIS3, Bits);
+  MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_RSTDIS3, Bits);
 
   do {
-    Data = MmioRead32 (SC_PERIPH_RSTSTAT3);
+    Data = MmioRead32 (PERI_CTRL_BASE + SC_PERIPH_RSTSTAT3);
   } while (Data & Bits);
 
   UsbPhyInit ();
+  UartInit ();
 }
