@@ -16,11 +16,9 @@
 #ifndef __HI6220_REGS_PERI_H__
 #define __HI6220_REGS_PERI_H__
 
-#define HI6220_PERI_BASE                0xf7030000
-
-#define SC_PERIPH_RSTEN3                (HI6220_PERI_BASE + 0x330)
-#define SC_PERIPH_RSTDIS3               (HI6220_PERI_BASE + 0x334)
-#define SC_PERIPH_RSTSTAT3              (HI6220_PERI_BASE + 0x338)
+#define SC_PERIPH_RSTEN3                0x330
+#define SC_PERIPH_RSTDIS3               0x334
+#define SC_PERIPH_RSTSTAT3              0x338
 
 /* SC_PERIPH_RSTEN3/RSTDIS3/RSTSTAT3 */
 #define PERIPH_RST3_CSSYS               (1 << 0)
