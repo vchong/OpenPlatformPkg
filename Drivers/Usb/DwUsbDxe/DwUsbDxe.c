@@ -714,6 +714,9 @@ DwUsbStart (
 
   // Right now we just support one configuration
   ASSERT (mDeviceDescriptor->NumConfigurations == 1);
+  mDeviceDescriptor->StrManufacturer = 1;
+  mDeviceDescriptor->StrProduct = 2;
+  mDeviceDescriptor->StrSerialNumber = 3;
   // ... and one interface
   mConfigDescriptor = (USB_CONFIG_DESCRIPTOR *)mDescriptors;
   ASSERT (mConfigDescriptor->NumInterfaces == 1);
