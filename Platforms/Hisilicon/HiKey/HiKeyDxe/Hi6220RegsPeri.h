@@ -16,6 +16,7 @@
 #ifndef __HI6220_REGS_PERI_H__
 #define __HI6220_REGS_PERI_H__
 
+#define SC_PERIPH_CLKEN3                0x230
 #define SC_PERIPH_RSTEN3                0x330
 #define SC_PERIPH_RSTDIS3               0x334
 #define SC_PERIPH_RSTSTAT3              0x338
@@ -38,5 +39,7 @@
 #define PERIPH_RST3_HKADC               (1 << 19)
 #define PERIPH_RST3_CODEC_SSI           (1 << 20)
 #define PERIPH_RST3_PMUSSI1             (1 << 22)
+
+#define PMUSSI_REG(x)                   (PMUSSI_BASE + ((x) << 2))
 
 #endif /* __HI6220_REGS_PERI_H__ */

@@ -63,4 +63,6 @@
 #define MDDRC_AXI_BASE                          0xF7120000
 #define AXI_REGION_MAP_OFFSET(x)                ( 0x100 + ( x ) * 0x10 )
 
+#define PMUSSI_BASE                             0xF8000000
+
 #endif	/* __HI6220_H__ */
