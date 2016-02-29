@@ -58,28 +58,23 @@ STATIC USB_ENDPOINT_DESCRIPTOR  *mEndpointDescriptors;
 STATIC USB_DEVICE_RX_CALLBACK   mDataReceivedCallback;
 STATIC USB_DEVICE_TX_CALLBACK   mDataSentCallback;
 
-STATIC EFI_USB_STRING_DESCRIPTOR mLangStringDescriptor = {
-  4,
-  USB_DESC_TYPE_STRING,
-  {0x409}
+STATIC EFI_USB_STRING_DESCRIPTOR *mLangStringDescriptor;
+STATIC EFI_USB_STRING_DESCRIPTOR *mManufacturerStringDescriptor;
+STATIC EFI_USB_STRING_DESCRIPTOR *mProductStringDescriptor;
+STATIC EFI_USB_STRING_DESCRIPTOR *mSerialStringDescriptor;
+
+STATIC CHAR16 mLangString[] = { 0x409 };
+
+STATIC CHAR16 mManufacturerString[] = {
+  '9', '6', 'B', 'o', 'a', 'r', 'd', 's'
 };
 
-STATIC EFI_USB_STRING_DESCRIPTOR mManufacturerStringDescriptor = {
-  18,
-  USB_DESC_TYPE_STRING,
-  {'9', '6', 'B', 'o', 'a', 'r', 'd', 's'}
+STATIC CHAR16 mProductString[] = {
+  'H', 'i', 'K', 'e', 'y'
 };
 
-STATIC EFI_USB_STRING_DESCRIPTOR mProductStringDescriptor = {
-  12,
-  USB_DESC_TYPE_STRING,
-  {'H', 'i', 'K', 'e', 'y'}
-};
-
-STATIC EFI_USB_STRING_DESCRIPTOR mSerialStringDescriptor = {
-  34,
-  USB_DESC_TYPE_STRING,
-  {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'}
+STATIC CHAR16 mSerialString[] = {
+  '0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'
 };
 
 // The time between interrupt polls, in units of 100 nanoseconds
@@ -256,21 +251,21 @@ HandleGetDescriptor (
     DEBUG ((EFI_D_INFO, "USB: Got a request for String descriptor %d\n", Request->Value & 0xFF));
     switch (Request->Value & 0xff) {
     case 0:
-      ResponseSize = mLangStringDescriptor.Length;
-      ResponseData = &mLangStringDescriptor;
+      ResponseSize = mLangStringDescriptor->Length;
+      ResponseData = mLangStringDescriptor;
       break;
     case 1:
-      ResponseSize = mManufacturerStringDescriptor.Length;
-      ResponseData = &mManufacturerStringDescriptor;
+      ResponseSize = mManufacturerStringDescriptor->Length;
+      ResponseData = mManufacturerStringDescriptor;
       break;
     case 2:
-      ResponseSize = mProductStringDescriptor.Length;
-      ResponseData = &mProductStringDescriptor;
+      ResponseSize = mProductStringDescriptor->Length;
+      ResponseData = mProductStringDescriptor;
       break;
     case 3:
-      mSerialNo->Get (mSerialStringDescriptor.String, &mSerialStringDescriptor.Length);
-      ResponseSize = mSerialStringDescriptor.Length;
-      ResponseData = &mSerialStringDescriptor;
+      mSerialNo->Get (mSerialStringDescriptor->String, &mSerialStringDescriptor->Length);
+      ResponseSize = mSerialStringDescriptor->Length;
+      ResponseData = mSerialStringDescriptor;
       break;
     }
     break;
@@ -669,11 +664,48 @@ DwUsbStart (
   UINT8                    *Ptr;
   EFI_STATUS                Status;
   EFI_EVENT                 TimerEvent;
+  UINTN                     StringDescriptorSize;
 
   ASSERT (DeviceDescriptor != NULL);
   ASSERT (Descriptors[0] != NULL);
   ASSERT (RxCallback != NULL);
   ASSERT (TxCallback != NULL);
+
+  StringDescriptorSize = sizeof (EFI_USB_STRING_DESCRIPTOR) +
+	                 sizeof (mLangString) + 1;
+  mLangStringDescriptor = AllocateZeroPool (StringDescriptorSize);
+  ASSERT (mLangStringDescriptor != NULL);
+  mLangStringDescriptor->Length = sizeof (mLangString);
+  mLangStringDescriptor->DescriptorType = USB_DESC_TYPE_STRING;
+  CopyMem (mLangStringDescriptor->String, mLangString,
+	   mLangStringDescriptor->Length);
+
+  StringDescriptorSize = sizeof (EFI_USB_STRING_DESCRIPTOR) +
+	                 sizeof (mManufacturerString) + 1;
+  mManufacturerStringDescriptor = AllocateZeroPool (StringDescriptorSize);
+  ASSERT (mManufacturerStringDescriptor != NULL);
+  mManufacturerStringDescriptor->Length = sizeof (mManufacturerString);
+  mManufacturerStringDescriptor->DescriptorType = USB_DESC_TYPE_STRING;
+  CopyMem (mManufacturerStringDescriptor->String, mManufacturerString,
+	   mManufacturerStringDescriptor->Length);
+
+  StringDescriptorSize = sizeof (EFI_USB_STRING_DESCRIPTOR) +
+	                 sizeof (mProductString) + 1;
+  mProductStringDescriptor = AllocateZeroPool (StringDescriptorSize);
+  ASSERT (mProductStringDescriptor != NULL);
+  mProductStringDescriptor->Length = sizeof (mProductString);
+  mProductStringDescriptor->DescriptorType = USB_DESC_TYPE_STRING;
+  CopyMem (mProductStringDescriptor->String, mProductString,
+	   mProductStringDescriptor->Length);
+
+  StringDescriptorSize = sizeof (EFI_USB_STRING_DESCRIPTOR) +
+	                 sizeof (mSerialString) + 1;
+  mSerialStringDescriptor = AllocateZeroPool (StringDescriptorSize);
+  ASSERT (mSerialStringDescriptor != NULL);
+  mSerialStringDescriptor->Length = sizeof (mSerialString);
+  mSerialStringDescriptor->DescriptorType = USB_DESC_TYPE_STRING;
+  CopyMem (mSerialStringDescriptor->String, mSerialString,
+	   mSerialStringDescriptor->Length);
 
   usb_init();
 
