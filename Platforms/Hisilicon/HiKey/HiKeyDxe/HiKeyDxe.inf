@@ -55,7 +55,6 @@
   gEfiGlobalVariableGuid
   gFdtVariableGuid
   gHiKeyVariableGuid
-  gDwUsbTypeVariableGuid
 
 [Protocols]
   gDwUsbProtocolGuid

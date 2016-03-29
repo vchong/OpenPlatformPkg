@@ -40,4 +40,9 @@ HiKeyInitPeripherals (
   IN VOID
   );
 
+EFI_STATUS
+HiKeyUsbPhyInit (
+  IN UINT8           Mode
+  );
+
 #endif // __HIKEY_DXE_INTERNAL_H__

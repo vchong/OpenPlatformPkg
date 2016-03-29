@@ -26,6 +26,9 @@
 //
 typedef struct _DW_USB_PROTOCOL  DW_USB_PROTOCOL;
 
+#define USB_HOST_MODE    0
+#define USB_DEVICE_MODE  1
+
 typedef
 EFI_STATUS
 (EFIAPI *DW_USB_GET_SERIAL_NO) (
@@ -33,9 +36,15 @@ EFI_STATUS
   OUT UINT8                            *Length
   );
 
+typedef
+EFI_STATUS
+(EFIAPI *DW_USB_PHY_INIT) (
+  IN UINT8                           Mode
+  );
 
 struct _DW_USB_PROTOCOL {
   DW_USB_GET_SERIAL_NO                 Get;
+  DW_USB_PHY_INIT                      PhyInit;
 };
 
 extern EFI_GUID gDwUsbProtocolGuid;

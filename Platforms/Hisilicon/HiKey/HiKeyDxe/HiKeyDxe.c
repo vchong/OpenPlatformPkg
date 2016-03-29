@@ -179,42 +179,19 @@ GetSerialNo (
   return EFI_SUCCESS;
 }
 
-DW_USB_PROTOCOL mDwUsbDevice = {
-  GetSerialNo
-};
-
 EFI_STATUS
 EFIAPI
-HiKeySetUsbType (
-  VOID
+UsbPhyInit (
+  IN UINT8     Mode
   )
 {
-  EFI_STATUS            Status;
-  UINTN                 VariableSize;
-  CHAR16                DefaultUsbType[USB_TYPE_LENGTH] = L"device";
-
-  VariableSize = USB_TYPE_LENGTH * sizeof (CHAR16);
-  Status = gRT->GetVariable (
-                  (CHAR16 *)L"DwUsbType",
-                  &gDwUsbTypeVariableGuid,
-                  NULL,
-                  &VariableSize,
-                  &DefaultUsbType
-                  );
-  if (Status == EFI_NOT_FOUND) {
-             Status = gRT->SetVariable (
-                  (CHAR16*)L"DwUsbType",
-                  &gDwUsbTypeVariableGuid,
-                  EFI_VARIABLE_NON_VOLATILE       |
-                  EFI_VARIABLE_BOOTSERVICE_ACCESS |
-                  EFI_VARIABLE_RUNTIME_ACCESS,
-                  VariableSize,
-                  DefaultUsbType
-                  );
+  return HiKeyUsbPhyInit (Mode);
 }
 
-  return Status;
-}
+DW_USB_PROTOCOL mDwUsbDevice = {
+  GetSerialNo,
+  UsbPhyInit
+};
 
 EFI_STATUS
 EFIAPI
@@ -237,7 +214,6 @@ HiKeyEntryPoint (
 
   HiKeyInitSerialNo ();
   HiKeyInitBootDevice ();
-  HiKeySetUsbType ();
   HiKeyInitPeripherals ();
 
   Status = HiKeyBootMenuInstall ();
