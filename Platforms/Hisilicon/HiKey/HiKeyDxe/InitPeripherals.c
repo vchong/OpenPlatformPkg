@@ -18,33 +18,25 @@
 #include <Library/UefiLib.h>
 #include <Library/UefiRuntimeServicesTableLib.h>
 
+#include <Protocol/EmbeddedGpio.h>
+
 #include <Hi6220.h>
 
 #include "Hi6220RegsPeri.h"
 #include "HiKeyDxeInternal.h"
 
-STATIC
-VOID
-UsbPhyInit (
-  IN VOID
+// Jumper on pin5-6 of J15 determines whether boot to fastboot
+#define DETECT_J15_FASTBOOT      24    // GPIO 3_0
+
+EFI_STATUS
+HiKeyUsbPhyInit (
+  IN UINT8        Mode
   )
 {
+  EMBEDDED_GPIO *Gpio;
   EFI_STATUS    Status;
-  UINT32        Value, Data;
-  UINTN         VariableSize;
-  CHAR16        UsbType[USB_TYPE_LENGTH];
-
-  VariableSize = USB_TYPE_LENGTH * sizeof (CHAR16);
-  Status = gRT->GetVariable (
-               (CHAR16 *)L"DwUsbType",
-               &gDwUsbTypeVariableGuid,
-               NULL,
-               &VariableSize,
-               &UsbType
-          );
-
-  if (EFI_ERROR(Status))
-      DEBUG ((EFI_D_ERROR, "Variable Not Found\n"));
+  UINTN         Value;
+  UINT32        Data;
 
   //setup clock
   MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CLKEN0, BIT4);
@@ -68,26 +60,48 @@ UsbPhyInit (
   MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CTRL4, Value);
   MicroSecondDelay (1000);
 
-  if (!StrCmp(UsbType, (const CHAR16 *)L"device")) {
-         Value = MmioRead32 (PERI_CTRL_BASE + SC_PERIPH_CTRL5);
-         Value &= ~CTRL5_PICOPHY_BC_MODE;
-         MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CTRL5, Value);
-         MicroSecondDelay (20000);
-  } else if (!StrCmp(UsbType, (const CHAR16 *)L"host")) {
-         /*CTRL5*/
-         Data = MmioRead32 (PERI_CTRL_BASE + SC_PERIPH_CTRL5);
-         Data &= ~CTRL5_PICOPHY_BC_MODE;
-         Data |= CTRL5_USBOTG_RES_SEL | CTRL5_PICOPHY_ACAENB |
-                 CTRL5_PICOPHY_VDATDETENB | CTRL5_PICOPHY_DCDENB;
-         MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CTRL5, Data);
-         MicroSecondDelay (20000);
-         MmioWrite32 (PERI_CTRL_BASE + 0x018, 0x70533483); //EYE_PATTERN
-
-         MicroSecondDelay (5000);
+  //If Mode = 1, USB in Device Mode
+  //If Mode = 0, USB in Host Mode
+  if (Mode) {
+     Value = MmioRead32 (PERI_CTRL_BASE + SC_PERIPH_CTRL5);
+     Value &= ~CTRL5_PICOPHY_BC_MODE;
+     MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CTRL5, Value);
+     MicroSecondDelay (20000);
   } else {
-         DEBUG ((EFI_D_ERROR, "Unknown USB Type set, only possible values 'device' and 'host'\n"));
+    //In UEFI, USB Host stack starts before Fastboot. For a user, who want to use
+    //fastboot without UEFI menu, this may create some problem.
+    //To avoid any future issue, this GPIO check has been added.
+    Status = gBS->LocateProtocol (&gEmbeddedGpioProtocolGuid, NULL, (VOID **)&Gpio);
+    ASSERT_EFI_ERROR (Status);
+
+    Status = Gpio->Set (Gpio, DETECT_J15_FASTBOOT, GPIO_MODE_INPUT);
+    if (EFI_ERROR (Status)) {
+       DEBUG ((EFI_D_ERROR, "%a: failed to set jumper as gpio input\n", __func__));
+       return Status;
+    }
+    Status = Gpio->Get (Gpio, DETECT_J15_FASTBOOT, &Value);
+    if (EFI_ERROR (Status)) {
+       DEBUG ((EFI_D_ERROR, "%a: failed to get value from jumper\n", __func__));
+       return Status;
+    }
+    if (Value == 0) {
+       //Jumper connected on pin5-6 of J15
+       return EFI_DEVICE_ERROR;
+    }
+
+    /*CTRL5*/
+    Data = MmioRead32 (PERI_CTRL_BASE + SC_PERIPH_CTRL5);
+    Data &= ~CTRL5_PICOPHY_BC_MODE;
+    Data |= CTRL5_USBOTG_RES_SEL | CTRL5_PICOPHY_ACAENB |
+            CTRL5_PICOPHY_VDATDETENB | CTRL5_PICOPHY_DCDENB;
+    MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CTRL5, Data);
+    MicroSecondDelay (20000);
+    MmioWrite32 (PERI_CTRL_BASE + 0x018, 0x70533483); //EYE_PATTERN
+
+    MicroSecondDelay (5000);
   }
 
+  return EFI_SUCCESS;
 }
 
 STATIC
@@ -132,7 +146,6 @@ HiKeyInitPeripherals (
     Data = MmioRead32 (PERI_CTRL_BASE + SC_PERIPH_RSTSTAT3);
   } while (Data & Bits);
 
-  UsbPhyInit ();
   UartInit ();
 
   return EFI_SUCCESS;

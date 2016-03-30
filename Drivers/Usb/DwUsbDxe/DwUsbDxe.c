@@ -38,7 +38,7 @@ STATIC VOID *rx_buf;
 STATIC UINTN rx_desc_bytes = 0;
 STATIC UINTN mNumDataBytes;
 
-STATIC DW_USB_PROTOCOL          *mSerialNo;
+STATIC DW_USB_PROTOCOL          *DwUsb;
 
 #define USB_TYPE_LENGTH              16
 #define USB_BLOCK_HIGH_SPEED_SIZE    512
@@ -264,7 +264,7 @@ HandleGetDescriptor (
       ResponseData = mProductStringDescriptor;
       break;
     case 3:
-      mSerialNo->Get (mSerialStringDescriptor->String, &mSerialStringDescriptor->Length);
+      DwUsb->Get (mSerialStringDescriptor->String, &mSerialStringDescriptor->Length);
       ResponseSize = mSerialStringDescriptor->Length;
       ResponseData = mSerialStringDescriptor;
       break;
@@ -666,27 +666,16 @@ DwUsbStart (
   EFI_STATUS                Status;
   EFI_EVENT                 TimerEvent;
   UINTN                     StringDescriptorSize;
-  UINTN                     VariableSize;
-  CHAR16                    UsbType[USB_TYPE_LENGTH];
+  UINT8                     UsbMode;
 
   ASSERT (DeviceDescriptor != NULL);
   ASSERT (Descriptors[0] != NULL);
   ASSERT (RxCallback != NULL);
   ASSERT (TxCallback != NULL);
 
-  VariableSize = USB_TYPE_LENGTH * sizeof (CHAR16);
-  Status = gRT->GetVariable (
-                (CHAR16 *)L"DwUsbType",
-                &gDwUsbTypeVariableGuid,
-                NULL,
-                &VariableSize,
-                &UsbType
-          );
-
-  if (StrCmp(UsbType, (const CHAR16 *)L"device")) {
-      DEBUG ((EFI_D_ERROR, "USB is not in DEVICE mode\n"));
-      return EFI_DEVICE_ERROR;
-  }
+  //Mode: 1 for device, 0 for Host
+  UsbMode = USB_DEVICE_MODE;
+  DwUsb->PhyInit(UsbMode);
 
   StringDescriptorSize = sizeof (EFI_USB_STRING_DESCRIPTOR) +
 	                 sizeof (mLangString) + 1;
@@ -785,7 +774,7 @@ DwUsbEntryPoint (
 {
   EFI_STATUS      Status;
 
-  Status = gBS->LocateProtocol (&gDwUsbProtocolGuid, NULL, (VOID **) &mSerialNo);
+  Status = gBS->LocateProtocol (&gDwUsbProtocolGuid, NULL, (VOID **) &DwUsb);
   if (EFI_ERROR (Status)) {
     return Status;
   }
