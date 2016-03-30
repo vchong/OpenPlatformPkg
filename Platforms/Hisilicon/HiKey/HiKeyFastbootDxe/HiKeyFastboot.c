@@ -22,6 +22,7 @@
 #include <Protocol/AndroidFastbootPlatform.h>
 #include <Protocol/BlockIo.h>
 #include <Protocol/DiskIo.h>
+#include <Protocol/EraseBlock.h>
 #include <Protocol/SimpleTextOut.h>
 
 #include <Library/BaseLib.h>
@@ -55,6 +56,7 @@ typedef struct _FASTBOOT_PARTITION_LIST {
   LIST_ENTRY  Link;
   CHAR16      PartitionName[PARTITION_NAME_MAX_LENGTH];
   EFI_HANDLE  PartitionHandle;
+  EFI_LBA     Lba;
 } FASTBOOT_PARTITION_LIST;
 
 STATIC LIST_ENTRY mPartitionListHead;
@@ -311,6 +313,7 @@ HiKeyFastbootPlatformInit (
         PartitionEntries[PartitionNode->PartitionNumber - 1].PartitionName, // Partition numbers start from 1.
         PARTITION_NAME_MAX_LENGTH
         );
+      Entry->Lba = PartitionEntries[PartitionNode->PartitionNumber - 1].StartingLBA;
       InsertTailList (&mPartitionListHead, &Entry->Link);
 
       // Print a debug message if the partition label is empty or looks like
@@ -541,16 +544,17 @@ HiKeyFastbootPlatformErasePartition (
   IN CHAR8 *PartitionName
   )
 {
-  EFI_STATUS               Status;
-  EFI_BLOCK_IO_PROTOCOL   *BlockIo;
-  EFI_DISK_IO_PROTOCOL    *DiskIo;
-  UINT32                   MediaId;
-  UINT64                   Offset;
-  UINTN                    PartitionSize, ErasePageCount, EraseSize;
-  FASTBOOT_PARTITION_LIST *Entry;
-  CHAR16                   PartitionNameUnicode[60];
-  BOOLEAN                  PartitionFound;
-  CHAR8                   *Buffer;
+  EFI_STATUS                Status;
+  EFI_BLOCK_IO_PROTOCOL    *BlockIo;
+  EFI_BLOCK_IO_PROTOCOL    *MmcBlockIo;
+  EFI_ERASE_BLOCK_PROTOCOL *EraseBlockProtocol;
+  UINT32                    MediaId;
+//  UINTN                    PartitionSize;
+  FASTBOOT_PARTITION_LIST  *Entry;
+  CHAR16                    PartitionNameUnicode[60];
+  BOOLEAN                   PartitionFound;
+  UINTN                     NumHandles;
+  EFI_HANDLE               *BufferHandle;
 
   AsciiStrToUnicodeStr (PartitionName, PartitionNameUnicode);
 
@@ -582,50 +586,35 @@ HiKeyFastbootPlatformErasePartition (
     return EFI_NOT_FOUND;
   }
 
-  MediaId = BlockIo->Media->MediaId;
-
-  Status = gBS->OpenProtocol (
-                  Entry->PartitionHandle,
-                  &gEfiDiskIoProtocolGuid,
-                  (VOID **) &DiskIo,
-                  gImageHandle,
-                  NULL,
-                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
-                  );
+  Status = gBS->LocateProtocol (&gEfiEraseBlockProtocolGuid, NULL, (VOID **) &EraseBlockProtocol);
   ASSERT_EFI_ERROR (Status);
 
-  PartitionSize = (BlockIo->Media->LastBlock + 1) * BlockIo->Media->BlockSize;
-  if (AsciiStrnCmp (PartitionName, "ptable", 6) == 0) {
+  Status = gBS->LocateHandleBuffer (ByProtocol, &gEfiEraseBlockProtocolGuid, NULL, &NumHandles, &BufferHandle);
+  ASSERT_EFI_ERROR (Status);
+
+  Status = gBS->HandleProtocol (
+                  BufferHandle[0],
+                  &gEfiBlockIoProtocolGuid,
+                  (VOID **) &MmcBlockIo
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((EFI_D_ERROR, "Fastboot platform: couldn't open Block IO for MMC device: %r\n", Status));
+    return EFI_NOT_FOUND;
+  }
+
+  MediaId = BlockIo->Media->MediaId;
+
+
+//  PartitionSize = (BlockIo->Media->LastBlock + 1) * BlockIo->Media->BlockSize;
+//  if (AsciiStrnCmp (PartitionName, "ptable", 6) == 0) {
     // partition table (GPT) cost 34 blocks
-    PartitionSize = 34 * BlockIo->Media->BlockSize;
-  }
+//    PartitionSize = 34 * BlockIo->Media->BlockSize;
+//  }
 
-  if (PartitionSize > HIKEY_ERASE_SIZE) {
-    ErasePageCount = HIKEY_ERASE_BLOCKS;
-    EraseSize = ErasePageCount * EFI_PAGE_SIZE;
-  } else {
-    ErasePageCount = (PartitionSize + EFI_PAGE_SIZE - 1) / EFI_PAGE_SIZE;
-    EraseSize = ErasePageCount * EFI_PAGE_SIZE;
-  }
-  Buffer = (CHAR8 *)AllocatePages (ErasePageCount);
-  if (Buffer == NULL)
-    return EFI_BUFFER_TOO_SMALL;
-  SetMem (Buffer, EraseSize, 0xff);
-
-  for (Offset = 0; Offset < PartitionSize; Offset += EraseSize) {
-    /* Check if it's the last erase region in the partition. */
-    if (Offset + EraseSize > PartitionSize) {
-      Status = DiskIo->WriteDisk (DiskIo, MediaId, Offset, PartitionSize - Offset, (VOID *)Buffer);
-    } else {
-      Status = DiskIo->WriteDisk (DiskIo, MediaId, Offset, EraseSize, (VOID *)Buffer);
-    }
+  Status = EraseBlockProtocol->EraseBlocks (MmcBlockIo, MediaId, Entry->Lba, NULL, BlockIo->Media->LastBlock);
     if (EFI_ERROR (Status)) {
-      DEBUG ((EFI_D_ERROR, "%a: Fail to erase at address 0x%x\n", __func__, Offset));
-      goto out;
+      DEBUG ((EFI_D_ERROR, "%a: Fail to erase at address 0x%x\n", __func__, Entry->Lba));
     }
-  }
-out:
-  FreePages (Buffer, ErasePageCount);
   return Status;
 }
 
