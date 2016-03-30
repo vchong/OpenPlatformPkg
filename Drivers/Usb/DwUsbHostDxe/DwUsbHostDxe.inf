@@ -50,6 +50,7 @@
 [Protocols]
   gEfiDriverBindingProtocolGuid
   gEfiUsb2HcProtocolGuid
+  gDwUsbProtocolGuid
 
 [Pcd]
   gDwUsbDxeTokenSpaceGuid.PcdDwUsbDxeBaseAddress

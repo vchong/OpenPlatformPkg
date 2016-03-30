@@ -33,6 +33,8 @@ EFI_USB_PCIIO_DEVICE_PATH DwHcDevicePath =
 VOID DwHcInit (IN DWUSB_OTGHC_DEV *DwHc);
 VOID DwCoreInit (IN DWUSB_OTGHC_DEV *DwHc);
 
+STATIC DW_USB_PROTOCOL          *DwUsb;
+
 UINT32
 Wait4Bit (
   IN UINT32     Reg,
@@ -262,8 +264,17 @@ DwHcReset (
   )
 {
 	DWUSB_OTGHC_DEV	*DwHc;
+        EFI_STATUS       Status;
+        UINT8            UsbMode;
 
 	DwHc = DWHC_FROM_THIS (This);
+
+        //Mode: 1 for device, 0 for Host
+        UsbMode = USB_HOST_MODE;
+        Status = DwUsb->PhyInit(UsbMode);
+        if (EFI_ERROR(Status)) {
+           return Status;
+        }
 
         DwCoreInit(DwHc);
         DwHcInit(DwHc);
@@ -1051,6 +1062,11 @@ DwUsbHostEntryPoint (
         if (DwHc == NULL) {
                 Status = EFI_OUT_OF_RESOURCES;
                 goto EXIT;
+        }
+
+        Status = gBS->LocateProtocol (&gDwUsbProtocolGuid, NULL, (VOID **) &DwUsb);
+        if (EFI_ERROR (Status)) {
+           return Status;
         }
 
         Status = gBS->InstallMultipleProtocolInterfaces (

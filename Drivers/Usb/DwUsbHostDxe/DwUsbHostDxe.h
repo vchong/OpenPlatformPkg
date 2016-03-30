@@ -17,6 +17,7 @@
 
 #include <Uefi.h>
 
+#include <Protocol/DwUsb.h>
 #include <Protocol/Usb2HostController.h>
 
 #include <Guid/EventGroup.h>
