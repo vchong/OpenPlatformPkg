@@ -39,7 +39,7 @@
 
 typedef enum {
   HIKEY_DTB_ANDROID = 0,	/* DTB is attached at the end of boot.img */
-  HIKEY_DTB_DEBIAN = 1,		/* DTB is in separated partition */
+  HIKEY_DTB_LINUX = 1,		/* DTB is in partition */
   HIKEY_DTB_SD = 2,		/* DTB is already in SD Card */
 } HiKeyDtbType;
 
@@ -70,7 +70,7 @@ STATIC UINT16 mBootIndex = 0;
 #define HIKEY_BOOT_ENTRY_BOOT_EMMC         1    /* boot from eMMC */
 #define HIKEY_BOOT_ENTRY_BOOT_SD           2    /* boot from SD card */
 
-STATIC struct HiKeyBootEntry DebianEntries[] = {
+STATIC struct HiKeyBootEntry LinuxEntries[] = {
   [HIKEY_BOOT_ENTRY_FASTBOOT] = {
     L"FvFile(9588502a-5370-11e3-8631-d7c5951364c8)",
     //L"VenHw(B549F005-4BD4-4020-A0CB-06F42BDA68C3)/HD(6,GPT,5C0F213C-17E1-4149-88C8-8B50FB4EC70E,0x7000,0x20000)/\\EFI\\BOOT\\FASTBOOT.EFI",
@@ -571,7 +571,7 @@ HiKeyCheckDtbType (
   ASSERT_EFI_ERROR (Status);
   if (AsciiStrnCmp ((CHAR8 *)AlignedPtr, BOOT_MAGIC, BOOT_MAGIC_LENGTH) != 0) {
     /* It's debian boot image. */
-    *DtbType = HIKEY_DTB_DEBIAN;
+    *DtbType = HIKEY_DTB_LINUX;
   } else {
     /* It's android boot image. */
     *DtbType = HIKEY_DTB_ANDROID;
@@ -635,9 +635,9 @@ HiKeyOnEndOfDxe (
   mBootCount = 0;
   mBootOrder = NULL;
 
-  if (DtbType == HIKEY_DTB_DEBIAN) {
-    Count = sizeof (DebianEntries) / sizeof (struct HiKeyBootEntry);
-    Entry = DebianEntries;
+  if (DtbType == HIKEY_DTB_LINUX) {
+    Count = sizeof (LinuxEntries) / sizeof (struct HiKeyBootEntry);
+    Entry = LinuxEntries;
   } else if (DtbType == HIKEY_DTB_ANDROID) {
     Count = sizeof (AndroidEntries) / sizeof (struct HiKeyBootEntry);
     Entry = AndroidEntries;
