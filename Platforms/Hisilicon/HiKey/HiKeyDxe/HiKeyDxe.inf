@@ -68,6 +68,7 @@
   gArmTokenSpaceGuid.PcdSystemMemoryBase
   gArmTokenSpaceGuid.PcdSystemMemorySize
   gHiKeyTokenSpaceGuid.PcdAndroidFastbootNvmDevicePath
+  gHiKeyTokenSpaceGuid.PcdBootImagePath
 
 [Depex]
   AFTER gFaultTolerantWriteGuid
