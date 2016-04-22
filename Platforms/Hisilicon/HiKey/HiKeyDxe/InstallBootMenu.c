@@ -15,6 +15,7 @@
 
 #include <Library/BaseMemoryLib.h>
 #include <Library/BdsLib.h>
+#include <Library/CacheMaintenanceLib.h>
 #include <Library/DevicePathLib.h>
 #include <Library/IoLib.h>
 #include <Library/MemoryAllocationLib.h>
@@ -23,6 +24,7 @@
 #include <Library/UefiLib.h>
 #include <Library/UefiRuntimeServicesTableLib.h>
 
+#include <Protocol/BlockIo.h>
 #include <Protocol/DevicePathFromText.h>
 #include <Protocol/DevicePathToText.h>
 #include <Protocol/EmbeddedGpio.h>
@@ -34,6 +36,14 @@
 #include <Guid/VariableFormat.h>
 
 #include "HiKeyDxeInternal.h"
+
+typedef enum {
+  HIKEY_DTB_ANDROID = 0,	/* DTB is attached at the end of boot.img */
+  HIKEY_DTB_DEBIAN = 1,		/* DTB is in separated partition */
+  HIKEY_DTB_SD = 2,		/* DTB is already in SD Card */
+} HiKeyDtbType;
+
+#define HIKEY_IO_BLOCK_SIZE      512
 
 #define MAX_BOOT_ENTRIES         16
 // Jumper on pin5-6 of J15 determines whether boot to fastboot
@@ -60,7 +70,7 @@ STATIC UINT16 mBootIndex = 0;
 #define HIKEY_BOOT_ENTRY_BOOT_EMMC         1    /* boot from eMMC */
 #define HIKEY_BOOT_ENTRY_BOOT_SD           2    /* boot from SD card */
 
-STATIC struct HiKeyBootEntry Entries[] = {
+STATIC struct HiKeyBootEntry DebianEntries[] = {
   [HIKEY_BOOT_ENTRY_FASTBOOT] = {
     L"FvFile(9588502a-5370-11e3-8631-d7c5951364c8)",
     //L"VenHw(B549F005-4BD4-4020-A0CB-06F42BDA68C3)/HD(6,GPT,5C0F213C-17E1-4149-88C8-8B50FB4EC70E,0x7000,0x20000)/\\EFI\\BOOT\\FASTBOOT.EFI",
@@ -81,6 +91,29 @@ STATIC struct HiKeyBootEntry Entries[] = {
     LOAD_OPTION_CATEGORY_BOOT
   }
 };
+
+STATIC struct HiKeyBootEntry AndroidEntries[] = {
+  [HIKEY_BOOT_ENTRY_FASTBOOT] = {
+    L"FvFile(9588502a-5370-11e3-8631-d7c5951364c8)",
+    //L"VenHw(B549F005-4BD4-4020-A0CB-06F42BDA68C3)/HD(6,GPT,5C0F213C-17E1-4149-88C8-8B50FB4EC70E,0x7000,0x20000)/\\EFI\\BOOT\\FASTBOOT.EFI",
+    NULL,
+    L"fastboot",
+    LOAD_OPTION_CATEGORY_APP
+  },
+  [HIKEY_BOOT_ENTRY_BOOT_EMMC] = {
+    L"VenHw(B549F005-4BD4-4020-A0CB-06F42BDA68C3)/HD(6,GPT,5C0F213C-17E1-4149-88C8-8B50FB4EC70E,0x7000,0x20000)/Offset(0x0000,0x20000)",
+    L"console=ttyAMA3,115200 earlycon=pl011,0xf7113000 root=/dev/mmcblk0p9 rw rootwait efi=noruntime",
+    L"boot from eMMC",
+    LOAD_OPTION_CATEGORY_BOOT
+  },
+  [HIKEY_BOOT_ENTRY_BOOT_SD] = {
+    L"VenHw(594BFE73-5E18-4F12-8119-19DB8C5FC849)/HD(1,MBR,0x00000000,0x3F,0x21FC0)/Image",
+    L"dtb=hi6220-hikey.dtb console=ttyAMA3,115200 earlycon=pl011,0xf7113000 root=/dev/mmcblk1p2 rw rootwait initrd=initrd.img efi=noruntime",
+    L"boot from SD card",
+    LOAD_OPTION_CATEGORY_BOOT
+  }
+};
+
 
 STATIC
 BOOLEAN
@@ -494,6 +527,57 @@ HiKeyCreateFdtVariable (
   ASSERT_EFI_ERROR(Status);
 }
 
+#define BOOT_MAGIC        "ANDROID!"
+#define BOOT_MAGIC_LENGTH sizeof (BOOT_MAGIC) - 1
+
+STATIC
+EFI_STATUS
+EFIAPI
+HiKeyCheckDtbType (
+  OUT UINTN       *DtbType
+  )
+{
+  EFI_DEVICE_PATH_PROTOCOL        *BlockDevicePath;
+  EFI_BLOCK_IO_PROTOCOL           *BlockIoProtocol;
+  EFI_HANDLE                      Handle;
+  EFI_STATUS                      Status;
+  VOID                            *DataPtr, *AlignedPtr;
+
+  /* Check boot image */
+  BlockDevicePath = ConvertTextToDevicePath ((CHAR16*)FixedPcdGetPtr (PcdBootImagePath));
+  Status = gBS->LocateDevicePath (&gEfiBlockIoProtocolGuid, &BlockDevicePath, &Handle);
+  ASSERT_EFI_ERROR (Status);
+
+  Status = gBS->OpenProtocol (
+                      Handle,
+                      &gEfiBlockIoProtocolGuid,
+                      (VOID **) &BlockIoProtocol,
+                      gImageHandle,
+                      NULL,
+                      EFI_OPEN_PROTOCOL_GET_PROTOCOL
+                      );
+  ASSERT_EFI_ERROR (Status);
+
+  /* Read the header of boot image. */
+  DataPtr = AllocateZeroPool (HIKEY_IO_BLOCK_SIZE * 2);
+  ASSERT (DataPtr != 0);
+  AlignedPtr = (VOID *)(((UINTN)DataPtr + HIKEY_IO_BLOCK_SIZE - 1) & ~(HIKEY_IO_BLOCK_SIZE - 1));
+  InvalidateDataCacheRange (AlignedPtr, HIKEY_IO_BLOCK_SIZE);
+  /* TODO: Update 0x7000 by LBA what is fetched from partition. */
+  Status = BlockIoProtocol->ReadBlocks (BlockIoProtocol, BlockIoProtocol->Media->MediaId,
+                                        0x7000, HIKEY_IO_BLOCK_SIZE, AlignedPtr);
+  ASSERT_EFI_ERROR (Status);
+  if (AsciiStrnCmp ((CHAR8 *)AlignedPtr, BOOT_MAGIC, BOOT_MAGIC_LENGTH) != 0) {
+    /* It's debian boot image. */
+    *DtbType = HIKEY_DTB_DEBIAN;
+  } else {
+    /* It's android boot image. */
+    *DtbType = HIKEY_DTB_ANDROID;
+  }
+  FreePool (DataPtr);
+  return Status;
+}
+
 STATIC
 VOID
 EFIAPI
@@ -506,6 +590,8 @@ HiKeyOnEndOfDxe (
   UINTN               VariableSize;
   UINT16              AutoBoot, Count, Index;
   CHAR16              BootDevice[BOOT_DEVICE_LENGTH];
+  UINTN               DtbType;
+  struct HiKeyBootEntry *Entry;
 
   VariableSize = sizeof (UINT16);
   Status = gRT->GetVariable (
@@ -541,19 +627,31 @@ HiKeyOnEndOfDxe (
     }
   }
 
-  Count = sizeof (Entries) / sizeof (struct HiKeyBootEntry);
+  Status = HiKeyCheckDtbType (&DtbType);
+  ASSERT_EFI_ERROR (Status);
 
   mBootCount = 0;
   mBootOrder = NULL;
 
+  if (DtbType == HIKEY_DTB_DEBIAN) {
+    Count = sizeof (DebianEntries) / sizeof (struct HiKeyBootEntry);
+    Entry = DebianEntries;
+  } else if (DtbType == HIKEY_DTB_ANDROID) {
+    Count = sizeof (AndroidEntries) / sizeof (struct HiKeyBootEntry);
+    Entry = AndroidEntries;
+  } else {
+    ASSERT (0);
+  }
+
   for (Index = 0; Index < Count; Index++) {
     Status = HiKeyCreateBootEntry (
-               Entries[Index].Path,
-               Entries[Index].Args,
-               Entries[Index].Description,
-               Entries[Index].LoadType
+               Entry->Path,
+               Entry->Args,
+               Entry->Description,
+               Entry->LoadType
                );
     ASSERT_EFI_ERROR (Status);
+    Entry++;
   }
 
   if ((mBootCount == 0) || (mBootCount >= MAX_BOOT_ENTRIES)) {
