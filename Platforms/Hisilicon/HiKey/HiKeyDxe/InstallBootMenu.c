@@ -28,8 +28,10 @@
 #include <Protocol/DevicePathFromText.h>
 #include <Protocol/DevicePathToText.h>
 #include <Protocol/EmbeddedGpio.h>
+#include <Protocol/SimpleFileSystem.h>
 
 #include <Guid/Fdt.h>
+#include <Guid/FileInfo.h>
 #include <Guid/EventGroup.h>
 #include <Guid/GlobalVariable.h>
 #include <Guid/HiKeyVariable.h>
@@ -417,7 +419,7 @@ HiKeyTestLed (
 #define REBOOT_REASON_BOOTLOADER	0x77665500
 #define REBOOT_REASON_NONE		0x77665501
 STATIC
-VOID
+BOOLEAN
 EFIAPI
 HiKeyDetectRebootReason (
   IN     VOID
@@ -427,20 +429,19 @@ HiKeyDetectRebootReason (
    UINT32  val;
 
    val = *addr;
-   /* Check to see if "reboot booloader" was specified */
-   if (val == REBOOT_REASON_BOOTLOADER) {
-     mBootIndex = 0;
-   }
    /* Write NONE to the reason address to clear the state */
    *addr = REBOOT_REASON_NONE;
+   /* Check to see if "reboot booloader" was specified */
+   if (val == REBOOT_REASON_BOOTLOADER)
+     return TRUE;
 
-   return;
+   return FALSE;
 }
 
 STATIC
-VOID
+BOOLEAN
 EFIAPI
-HiKeyDetectJumper (
+HiKeyIsJumperConnected (
   IN     VOID
   )
 {
@@ -454,21 +455,18 @@ HiKeyDetectJumper (
   Status = Gpio->Set (Gpio, DETECT_J15_FASTBOOT, GPIO_MODE_INPUT);
   if (EFI_ERROR (Status)) {
     DEBUG ((EFI_D_ERROR, "%a: failed to set jumper as gpio input\n", __func__));
-    return;
+    return FALSE;
   }
   Status = Gpio->Get (Gpio, DETECT_J15_FASTBOOT, &Value);
   if (EFI_ERROR (Status)) {
     DEBUG ((EFI_D_ERROR, "%a: failed to get value from jumper\n", __func__));
-    return;
-  }
-  if (Value == 1) {
-    // Jump not connected on pin5-6 of J15
-    mBootIndex = 1;
-  } else {
-    mBootIndex = 0;
+    return FALSE;
   }
 
   HiKeyTestLed (Gpio);
+  if (Value != 0)
+    return FALSE;
+  return TRUE;
 }
 
 STATIC
@@ -532,10 +530,13 @@ HiKeyCreateFdtVariable (
 #define BOOT_MAGIC        "ANDROID!"
 #define BOOT_MAGIC_LENGTH sizeof (BOOT_MAGIC) - 1
 
+/*
+ * Check which boot type is valid for eMMC.
+ */
 STATIC
 EFI_STATUS
 EFIAPI
-HiKeyCheckDtbType (
+HiKeyCheckEmmcDtbType (
   OUT UINTN       *DtbType
   )
 {
@@ -581,6 +582,146 @@ HiKeyCheckDtbType (
 }
 
 STATIC
+BOOLEAN
+EFIAPI
+HiKeyIsSdBoot (
+  IN struct HiKeyBootEntry    *Entry
+  )
+{
+  CHAR16                           *Path;
+  EFI_DEVICE_PATH                  *DevicePath, *NextDevicePath;
+  EFI_STATUS                        Status;
+  EFI_HANDLE                        Handle;
+  EFI_SIMPLE_FILE_SYSTEM_PROTOCOL  *FsProtocol;
+  EFI_FILE_PROTOCOL                *Fs;
+  EFI_FILE_INFO                    *FileInfo;
+  EFI_FILE_PROTOCOL                *File;
+  FILEPATH_DEVICE_PATH             *FilePathDevicePath;
+  UINTN                             Index, Size;
+  UINTN                             HandleCount;
+  EFI_HANDLE                       *HandleBuffer;
+  EFI_DEVICE_PATH_PROTOCOL         *DevicePathProtocol;
+  BOOLEAN                           Found = FALSE, Result = FALSE;
+
+  if (HiKeySDCardIsPresent () == FALSE)
+    return FALSE;
+  Path = Entry[HIKEY_BOOT_ENTRY_BOOT_SD].Path;
+  ASSERT (Path != NULL);
+
+  DevicePath = ConvertTextToDevicePath (Path);
+  if (DevicePath == NULL) {
+    DEBUG ((EFI_D_ERROR, "Warning: Couldn't get device path\n"));
+    return FALSE;
+  }
+
+  /* Connect handles to drivers. Since simple filesystem driver is loaded later by default. */
+  do {
+    // Locate all the driver handles
+    Status = gBS->LocateHandleBuffer (
+                AllHandles,
+                NULL,
+                NULL,
+                &HandleCount,
+                &HandleBuffer
+                );
+    if (EFI_ERROR (Status)) {
+      break;
+    }
+
+    // Connect every handles
+    for (Index = 0; Index < HandleCount; Index++) {
+      gBS->ConnectController (HandleBuffer[Index], NULL, NULL, TRUE);
+    }
+
+    if (HandleBuffer != NULL) {
+      FreePool (HandleBuffer);
+    }
+
+    // Check if new handles have been created after the start of the previous handles
+    Status = gDS->Dispatch ();
+  } while (!EFI_ERROR(Status));
+
+  // List all the Simple File System Protocols
+  Status = gBS->LocateHandleBuffer (ByProtocol, &gEfiSimpleFileSystemProtocolGuid, NULL, &HandleCount, &HandleBuffer);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((EFI_D_ERROR, "Warning: Failed to list all the simple filesystem protocols (status:%r)\n", Status));
+    return FALSE;
+  }
+  for (Index = 0; Index < HandleCount; Index++) {
+    Status = gBS->HandleProtocol (HandleBuffer[Index], &gEfiDevicePathProtocolGuid, (VOID **)&DevicePathProtocol);
+    if (EFI_ERROR(Status))
+      continue;
+    NextDevicePath = NextDevicePathNode (DevicePath);
+    Size = (UINTN)NextDevicePath - (UINTN)DevicePath;
+    if (Size <= GetDevicePathSize (DevicePath)) {
+      if ((CompareMem (DevicePath, DevicePathProtocol, Size)) == 0) {
+	Found = TRUE;
+        break;
+      }
+    }
+  }
+  if (!Found) {
+    DEBUG ((EFI_D_ERROR, "Warning: Failed to find valid device path\n"));
+    return FALSE;
+  }
+
+  Handle = HandleBuffer[Index];
+  Status = gBS->LocateDevicePath (&gEfiDevicePathProtocolGuid, &DevicePath, &Handle);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((EFI_D_ERROR, "Warning: Couldn't locate device (status: %r)\n", Status));
+    return FALSE;
+  }
+  FilePathDevicePath = (FILEPATH_DEVICE_PATH*)DevicePath;
+
+  Status = gBS->OpenProtocol (
+                  Handle,
+                  &gEfiSimpleFileSystemProtocolGuid,
+                  (VOID**)&FsProtocol,
+                  gImageHandle,
+                  Handle,
+                  EFI_OPEN_PROTOCOL_BY_DRIVER
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((EFI_D_ERROR, "Warning: Failedn't to mount as Simple Filrsystem (status: %r)\n", Status));
+    return FALSE;
+  }
+  Status = FsProtocol->OpenVolume (FsProtocol, &Fs);
+  if (EFI_ERROR (Status)) {
+    goto CLOSE_PROTOCOL;
+  }
+
+  Status = Fs->Open (Fs, &File, FilePathDevicePath->PathName, EFI_FILE_MODE_READ, 0);
+  if (EFI_ERROR (Status)) {
+    goto CLOSE_PROTOCOL;
+  }
+
+  Size = 0;
+  File->GetInfo (File, &gEfiFileInfoGuid, &Size, NULL);
+  FileInfo = AllocatePool (Size);
+  Status = File->GetInfo (File, &gEfiFileInfoGuid, &Size, FileInfo);
+  if (EFI_ERROR (Status)) {
+    goto CLOSE_FILE;
+  }
+
+  // Get the file size
+  Size = FileInfo->FileSize;
+  FreePool (FileInfo);
+  if (Size != 0) {
+    Result = TRUE;
+  }
+
+CLOSE_FILE:
+  File->Close (File);
+CLOSE_PROTOCOL:
+  gBS->CloseProtocol (
+         Handle,
+         &gEfiSimpleFileSystemProtocolGuid,
+         gImageHandle,
+         Handle);
+  return Result;
+}
+
+STATIC
 VOID
 EFIAPI
 HiKeyOnEndOfDxe (
@@ -591,7 +732,6 @@ HiKeyOnEndOfDxe (
   EFI_STATUS          Status;
   UINTN               VariableSize;
   UINT16              AutoBoot, Count, Index;
-  CHAR16              BootDevice[BOOT_DEVICE_LENGTH];
   UINTN               DtbType;
   struct HiKeyBootEntry *Entry;
 
@@ -603,7 +743,6 @@ HiKeyOnEndOfDxe (
                   &VariableSize,
                   (VOID*)&AutoBoot
                   );
-  DEBUG ((EFI_D_ERROR, "#%a, %d, Status:%r, AutoBoot:%d\n", __func__, __LINE__, Status, AutoBoot));
   if (Status == EFI_NOT_FOUND) {
     AutoBoot = 1;
     Status = gRT->SetVariable (
@@ -629,7 +768,7 @@ HiKeyOnEndOfDxe (
     }
   }
 
-  Status = HiKeyCheckDtbType (&DtbType);
+  Status = HiKeyCheckEmmcDtbType (&DtbType);
   ASSERT_EFI_ERROR (Status);
 
   mBootCount = 0;
@@ -644,6 +783,9 @@ HiKeyOnEndOfDxe (
   } else {
     ASSERT (0);
   }
+  ASSERT (HIKEY_DTB_SD < Count);
+  if (HiKeyIsSdBoot (Entry) == TRUE)
+    DtbType = HIKEY_DTB_SD;
 
   for (Index = 0; Index < Count; Index++) {
     Status = HiKeyCreateBootEntry (
@@ -667,58 +809,25 @@ HiKeyOnEndOfDxe (
     return;
   }
 
-  HiKeyDetectJumper ();
-  HiKeyDetectRebootReason ();
+  if (DtbType == HIKEY_DTB_SD)
+    mBootIndex = HIKEY_BOOT_ENTRY_BOOT_SD;
+  else
+    mBootIndex = HIKEY_BOOT_ENTRY_BOOT_EMMC;
 
-  // Check boot device.
-  // If boot device is eMMC, it's always higher priority.
-  // If boot device is SD card, SD card is higher priority.
-  //    If SD card is present, boot SD. Otherwise, still boot eMMC.
-  VariableSize = BOOT_DEVICE_LENGTH * sizeof (UINT16);
-  Status = gRT->GetVariable (
-                  (CHAR16 *)L"HiKeyBootDevice",
-                  &gHiKeyVariableGuid,
-                  NULL,
-                  &VariableSize,
-                  &BootDevice
-                  );
-  if (EFI_ERROR (Status) == 0) {
-    if (StrnCmp (BootDevice, L"emmc", StrLen (L"emmc")) == 0) {
-      if (mBootIndex > 0) {
-        mBootIndex = HIKEY_BOOT_ENTRY_BOOT_EMMC;
-      }
-    } else if (StrnCmp (BootDevice, L"sd", StrLen (L"sd")) == 0) {
-      if (mBootIndex > 0) {
-         // If SD card is present, boot from SD card directly.
-         if (HiKeySDCardIsPresent () == TRUE) {
-           mBootIndex = HIKEY_BOOT_ENTRY_BOOT_SD;
-         } else {
-           mBootIndex = HIKEY_BOOT_ENTRY_BOOT_EMMC;
-         }
-      }
-    } else {
-      DEBUG ((EFI_D_ERROR, "%a: invalid boot device (%a) is specified\n", __func__, BootDevice));
-      mBootIndex = HIKEY_BOOT_ENTRY_BOOT_EMMC;
-    }
-  } else {
-    DEBUG ((EFI_D_ERROR, "failed to get HiKeyBootDevice variable, %r\n", Status));
-  }
+  if (HiKeyIsJumperConnected () == TRUE)
+    mBootIndex = HIKEY_BOOT_ENTRY_FASTBOOT;
+  /* Set mBootIndex as HIKEY_BOOT_ENTRY_FASTBOOT if adb reboot-bootloader is specified */
+  if (HiKeyDetectRebootReason () == TRUE)
+    mBootIndex = HIKEY_BOOT_ENTRY_FASTBOOT;
 
-  // Fdt variable should be aligned with Image path.
-  // In another word, Fdt and Image file should be located in the same path.
-  // Since grub is used for eMMC boot, don't need to assign Fdt and Image path.
-  switch (mBootIndex) {
-  case HIKEY_BOOT_ENTRY_BOOT_SD:
+  if ((DtbType == HIKEY_DTB_SD) && (mBootIndex == HIKEY_BOOT_ENTRY_BOOT_SD))
     HiKeyCreateFdtVariable (L"VenHw(594BFE73-5E18-4F12-8119-19DB8C5FC849)/HD(1,MBR,0x00000000,0x3F,0x21FC0)/hi6220-hikey.dtb");
-    break;
-  }
 
   Status = HiKeyCreateBootNext ();
   if (EFI_ERROR (Status)) {
     DEBUG ((EFI_D_ERROR, "%a: failed to set BootNext variable\n", __func__));
     return;
   }
-  DEBUG ((EFI_D_ERROR, "#%a, %d, Status:%r\n", __func__, __LINE__, Status));
 }
 
 EFI_STATUS

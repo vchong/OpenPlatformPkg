@@ -61,6 +61,7 @@
   gEfiBlockIoProtocolGuid
   gEfiDevicePathFromTextProtocolGuid
   gEfiDevicePathToTextProtocolGuid
+  gEfiDevicePathProtocolGuid
   gEfiSimpleFileSystemProtocolGuid
   gEmbeddedGpioProtocolGuid
 
