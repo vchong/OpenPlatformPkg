@@ -494,39 +494,6 @@ HiKeySDCardIsPresent (
   return TRUE;
 }
 
-STATIC
-VOID
-EFIAPI
-HiKeyCreateFdtVariable (
-  IN CHAR16          *FdtPathText
-  )
-{
-  UINTN                     FdtDevicePathSize;
-  EFI_DEVICE_PATH_PROTOCOL *FdtDevicePath;
-  EFI_STATUS                Status;
-  EFI_DEVICE_PATH_FROM_TEXT_PROTOCOL *DevicePathFromTextProtocol;
-
-  Status = gBS->LocateProtocol (
-                  &gEfiDevicePathFromTextProtocolGuid,
-                  NULL,
-                  (VOID**)&DevicePathFromTextProtocol
-                  );
-  ASSERT_EFI_ERROR(Status);
-
-  FdtDevicePath = DevicePathFromTextProtocol->ConvertTextToDevicePath (FdtPathText);
-  ASSERT (FdtDevicePath != NULL);
-
-  FdtDevicePathSize = GetDevicePathSize (FdtDevicePath);
-  Status = gRT->SetVariable (
-                  (CHAR16*)L"Fdt",
-                  &gFdtVariableGuid,
-                  EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS,
-                  FdtDevicePathSize,
-                  FdtDevicePath
-                  );
-  ASSERT_EFI_ERROR(Status);
-}
-
 #define BOOT_MAGIC        "ANDROID!"
 #define BOOT_MAGIC_LENGTH sizeof (BOOT_MAGIC) - 1
 
@@ -819,9 +786,6 @@ HiKeyOnEndOfDxe (
   /* Set mBootIndex as HIKEY_BOOT_ENTRY_FASTBOOT if adb reboot-bootloader is specified */
   if (HiKeyDetectRebootReason () == TRUE)
     mBootIndex = HIKEY_BOOT_ENTRY_FASTBOOT;
-
-  if ((DtbType == HIKEY_DTB_SD) && (mBootIndex == HIKEY_BOOT_ENTRY_BOOT_SD))
-    HiKeyCreateFdtVariable (L"VenHw(594BFE73-5E18-4F12-8119-19DB8C5FC849)/HD(1,MBR,0x00000000,0x3F,0x21FC0)/hi6220-hikey.dtb");
 
   Status = HiKeyCreateBootNext ();
   if (EFI_ERROR (Status)) {
