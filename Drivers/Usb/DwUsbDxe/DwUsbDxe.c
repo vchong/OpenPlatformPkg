@@ -666,16 +666,11 @@ DwUsbStart (
   EFI_STATUS                Status;
   EFI_EVENT                 TimerEvent;
   UINTN                     StringDescriptorSize;
-  UINT8                     UsbMode;
 
   ASSERT (DeviceDescriptor != NULL);
   ASSERT (Descriptors[0] != NULL);
   ASSERT (RxCallback != NULL);
   ASSERT (TxCallback != NULL);
-
-  //Mode: 1 for device, 0 for Host
-  UsbMode = USB_DEVICE_MODE;
-  DwUsb->PhyInit(UsbMode);
 
   StringDescriptorSize = sizeof (EFI_USB_STRING_DESCRIPTOR) +
 	                 sizeof (mLangString) + 1;
@@ -773,8 +768,16 @@ DwUsbEntryPoint (
   )
 {
   EFI_STATUS      Status;
+  UINT8                     UsbMode;
 
   Status = gBS->LocateProtocol (&gDwUsbProtocolGuid, NULL, (VOID **) &DwUsb);
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  //Mode: 1 for device, 0 for Host
+  UsbMode = USB_DEVICE_MODE;
+  Status = DwUsb->PhyInit(UsbMode);
   if (EFI_ERROR (Status)) {
     return Status;
   }
