@@ -19,11 +19,17 @@
 #include <Library/UefiRuntimeServicesTableLib.h>
 
 #include <Protocol/EmbeddedGpio.h>
+#include <Protocol/DwUsb.h>
 
 #include <Hi6220.h>
 
 #include "Hi6220RegsPeri.h"
 #include "HiKeyDxeInternal.h"
+
+#define USB_SEL_GPIO0_3          3     // GPIO 0_3
+#define USB_5V_HUB_EN            7     // GPIO 0_7
+#define USB_ID_DET_GPIO2_5       21    // GPIO 2_5
+#define USB_VBUS_DET_GPIO2_6     22    // GPIO 2_6
 
 // Jumper on pin5-6 of J15 determines whether boot to fastboot
 #define DETECT_J15_FASTBOOT      24    // GPIO 3_0
@@ -37,7 +43,19 @@ HiKeyUsbPhyInit (
   EFI_STATUS    Status;
   UINTN         Value;
   UINT32        Data;
+  UINTN         GpioId, GpioVbus;
 
+  /* set pullup on both GPIO2_5 & GPIO2_6. It's required for inupt. */
+  MmioWrite32 (0xf8001864, 1);
+  MmioWrite32 (0xf8001868, 1);
+
+  Status = gBS->LocateProtocol (&gEmbeddedGpioProtocolGuid, NULL, (VOID **)&Gpio);
+  ASSERT_EFI_ERROR (Status);
+  Status = Gpio->Set (Gpio, USB_SEL_GPIO0_3, GPIO_MODE_OUTPUT_0);
+  ASSERT_EFI_ERROR (Status);
+  Status = Gpio->Set (Gpio, USB_5V_HUB_EN, GPIO_MODE_OUTPUT_0);
+  ASSERT_EFI_ERROR (Status);
+  MicroSecondDelay (1000);
   //setup clock
   MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CLKEN0, BIT4);
   do {
@@ -60,33 +78,35 @@ HiKeyUsbPhyInit (
   MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CTRL4, Value);
   MicroSecondDelay (1000);
 
+  Status = Gpio->Set (Gpio, USB_ID_DET_GPIO2_5, GPIO_MODE_INPUT);
+  ASSERT_EFI_ERROR (Status);
+  Status = Gpio->Get (Gpio, USB_ID_DET_GPIO2_5, &Value);
+  ASSERT_EFI_ERROR (Status);
+  GpioId = Value;
+  Status = Gpio->Set (Gpio, USB_VBUS_DET_GPIO2_6, GPIO_MODE_INPUT);
+  ASSERT_EFI_ERROR (Status);
+  Status = Gpio->Get (Gpio, USB_VBUS_DET_GPIO2_6, &Value);
+  ASSERT_EFI_ERROR (Status);
+  GpioVbus = Value;
+
   //If Mode = 1, USB in Device Mode
   //If Mode = 0, USB in Host Mode
-  if (Mode) {
+  if (Mode == USB_DEVICE_MODE) {
+    if ((GpioId == 1) && (GpioVbus == 0)) {
+      DEBUG ((EFI_D_ERROR, "usb work as device mode.\n"));
+    } else {
+      return EFI_INVALID_PARAMETER;
+    }
+
      Value = MmioRead32 (PERI_CTRL_BASE + SC_PERIPH_CTRL5);
      Value &= ~CTRL5_PICOPHY_BC_MODE;
      MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CTRL5, Value);
      MicroSecondDelay (20000);
   } else {
-    //In UEFI, USB Host stack starts before Fastboot. For a user, who want to use
-    //fastboot without UEFI menu, this may create some problem.
-    //To avoid any future issue, this GPIO check has been added.
-    Status = gBS->LocateProtocol (&gEmbeddedGpioProtocolGuid, NULL, (VOID **)&Gpio);
-    ASSERT_EFI_ERROR (Status);
-
-    Status = Gpio->Set (Gpio, DETECT_J15_FASTBOOT, GPIO_MODE_INPUT);
-    if (EFI_ERROR (Status)) {
-       DEBUG ((EFI_D_ERROR, "%a: failed to set jumper as gpio input\n", __func__));
-       return Status;
-    }
-    Status = Gpio->Get (Gpio, DETECT_J15_FASTBOOT, &Value);
-    if (EFI_ERROR (Status)) {
-       DEBUG ((EFI_D_ERROR, "%a: failed to get value from jumper\n", __func__));
-       return Status;
-    }
-    if (Value == 0) {
-       //Jumper connected on pin5-6 of J15
-       return EFI_DEVICE_ERROR;
+    if ((GpioId == 1) && (GpioVbus == 0)) {
+      return EFI_INVALID_PARAMETER;
+    } else {
+      DEBUG ((EFI_D_ERROR, "usb work as host mode.\n"));
     }
 
     /*CTRL5*/
