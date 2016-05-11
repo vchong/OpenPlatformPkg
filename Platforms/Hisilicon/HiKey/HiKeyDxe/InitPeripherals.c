@@ -80,6 +80,8 @@ HiKeyGetUsbMode (
 
   if ((GpioId == 1) && (GpioVbus == 0))
     return USB_DEVICE_MODE;
+  else if ((GpioId == 0) && (GpioVbus == 1))
+    return USB_CABLE_NOT_ATTACHED;
   return USB_HOST_MODE;
 }
 
@@ -129,10 +131,10 @@ HiKeyUsbPhyInit (
      MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CTRL5, Value);
      MicroSecondDelay (20000);
   } else {
-    if (HiKeyGetUsbMode () == USB_DEVICE_MODE) {
-      return EFI_INVALID_PARAMETER;
-    } else {
+    if (HiKeyGetUsbMode () == USB_HOST_MODE) {
       DEBUG ((EFI_D_ERROR, "usb work as host mode.\n"));
+    } else {
+      return EFI_INVALID_PARAMETER;
     }
 
     /*CTRL5*/

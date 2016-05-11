@@ -28,6 +28,7 @@ typedef struct _DW_USB_PROTOCOL  DW_USB_PROTOCOL;
 
 #define USB_HOST_MODE    0
 #define USB_DEVICE_MODE  1
+#define USB_CABLE_NOT_ATTACHED  2
 
 typedef
 EFI_STATUS
