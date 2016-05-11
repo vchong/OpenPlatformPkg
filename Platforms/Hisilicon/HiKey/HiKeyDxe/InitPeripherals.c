@@ -34,28 +34,65 @@
 // Jumper on pin5-6 of J15 determines whether boot to fastboot
 #define DETECT_J15_FASTBOOT      24    // GPIO 3_0
 
-EFI_STATUS
-HiKeyUsbPhyInit (
-  IN UINT8        Mode
+STATIC EMBEDDED_GPIO *mGpio;
+
+STATIC
+VOID
+HiKeyDetectUsbModeInit (
+  IN VOID
   )
 {
-  EMBEDDED_GPIO *Gpio;
-  EFI_STATUS    Status;
-  UINTN         Value;
-  UINT32        Data;
-  UINTN         GpioId, GpioVbus;
+  EFI_STATUS     Status;
 
   /* set pullup on both GPIO2_5 & GPIO2_6. It's required for inupt. */
   MmioWrite32 (0xf8001864, 1);
   MmioWrite32 (0xf8001868, 1);
 
-  Status = gBS->LocateProtocol (&gEmbeddedGpioProtocolGuid, NULL, (VOID **)&Gpio);
+  Status = gBS->LocateProtocol (&gEmbeddedGpioProtocolGuid, NULL, (VOID **)&mGpio);
   ASSERT_EFI_ERROR (Status);
-  Status = Gpio->Set (Gpio, USB_SEL_GPIO0_3, GPIO_MODE_OUTPUT_0);
+  Status = mGpio->Set (mGpio, USB_SEL_GPIO0_3, GPIO_MODE_OUTPUT_0);
   ASSERT_EFI_ERROR (Status);
-  Status = Gpio->Set (Gpio, USB_5V_HUB_EN, GPIO_MODE_OUTPUT_0);
+  Status = mGpio->Set (mGpio, USB_5V_HUB_EN, GPIO_MODE_OUTPUT_0);
   ASSERT_EFI_ERROR (Status);
   MicroSecondDelay (1000);
+
+  Status = mGpio->Set (mGpio, USB_ID_DET_GPIO2_5, GPIO_MODE_INPUT);
+  ASSERT_EFI_ERROR (Status);
+  Status = mGpio->Set (mGpio, USB_VBUS_DET_GPIO2_6, GPIO_MODE_INPUT);
+  ASSERT_EFI_ERROR (Status);
+}
+
+UINTN
+HiKeyGetUsbMode (
+  IN VOID
+  )
+{
+  EFI_STATUS     Status;
+  UINTN          GpioId, GpioVbus;
+  UINTN          Value;
+
+  Status = mGpio->Get (mGpio, USB_ID_DET_GPIO2_5, &Value);
+  ASSERT_EFI_ERROR (Status);
+  GpioId = Value;
+  Status = mGpio->Get (mGpio, USB_VBUS_DET_GPIO2_6, &Value);
+  ASSERT_EFI_ERROR (Status);
+  GpioVbus = Value;
+
+  if ((GpioId == 1) && (GpioVbus == 0))
+    return USB_DEVICE_MODE;
+  return USB_HOST_MODE;
+}
+
+EFI_STATUS
+HiKeyUsbPhyInit (
+  IN UINT8        Mode
+  )
+{
+  UINTN         Value;
+  UINT32        Data;
+
+  HiKeyDetectUsbModeInit ();
+
   //setup clock
   MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CLKEN0, BIT4);
   do {
@@ -78,21 +115,10 @@ HiKeyUsbPhyInit (
   MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CTRL4, Value);
   MicroSecondDelay (1000);
 
-  Status = Gpio->Set (Gpio, USB_ID_DET_GPIO2_5, GPIO_MODE_INPUT);
-  ASSERT_EFI_ERROR (Status);
-  Status = Gpio->Get (Gpio, USB_ID_DET_GPIO2_5, &Value);
-  ASSERT_EFI_ERROR (Status);
-  GpioId = Value;
-  Status = Gpio->Set (Gpio, USB_VBUS_DET_GPIO2_6, GPIO_MODE_INPUT);
-  ASSERT_EFI_ERROR (Status);
-  Status = Gpio->Get (Gpio, USB_VBUS_DET_GPIO2_6, &Value);
-  ASSERT_EFI_ERROR (Status);
-  GpioVbus = Value;
-
   //If Mode = 1, USB in Device Mode
   //If Mode = 0, USB in Host Mode
   if (Mode == USB_DEVICE_MODE) {
-    if ((GpioId == 1) && (GpioVbus == 0)) {
+    if (HiKeyGetUsbMode () == USB_DEVICE_MODE) {
       DEBUG ((EFI_D_ERROR, "usb work as device mode.\n"));
     } else {
       return EFI_INVALID_PARAMETER;
@@ -103,7 +129,7 @@ HiKeyUsbPhyInit (
      MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CTRL5, Value);
      MicroSecondDelay (20000);
   } else {
-    if ((GpioId == 1) && (GpioVbus == 0)) {
+    if (HiKeyGetUsbMode () == USB_DEVICE_MODE) {
       return EFI_INVALID_PARAMETER;
     } else {
       DEBUG ((EFI_D_ERROR, "usb work as host mode.\n"));
