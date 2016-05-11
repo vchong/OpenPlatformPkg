@@ -27,6 +27,7 @@
 #include <Protocol/BlockIo.h>
 #include <Protocol/DevicePathFromText.h>
 #include <Protocol/DevicePathToText.h>
+#include <Protocol/DwUsb.h>
 #include <Protocol/EmbeddedGpio.h>
 #include <Protocol/SimpleFileSystem.h>
 
@@ -776,16 +777,19 @@ HiKeyOnEndOfDxe (
     return;
   }
 
-  if (DtbType == HIKEY_DTB_SD)
+  if (DtbType == HIKEY_DTB_SD) {
     mBootIndex = HIKEY_BOOT_ENTRY_BOOT_SD;
-  else
+  } else {
     mBootIndex = HIKEY_BOOT_ENTRY_BOOT_EMMC;
+  }
 
-  if (HiKeyIsJumperConnected () == TRUE)
-    mBootIndex = HIKEY_BOOT_ENTRY_FASTBOOT;
-  /* Set mBootIndex as HIKEY_BOOT_ENTRY_FASTBOOT if adb reboot-bootloader is specified */
-  if (HiKeyDetectRebootReason () == TRUE)
-    mBootIndex = HIKEY_BOOT_ENTRY_FASTBOOT;
+  if (HiKeyGetUsbMode () == USB_DEVICE_MODE) {
+    if (HiKeyIsJumperConnected () == TRUE)
+      mBootIndex = HIKEY_BOOT_ENTRY_FASTBOOT;
+    /* Set mBootIndex as HIKEY_BOOT_ENTRY_FASTBOOT if adb reboot-bootloader is specified */
+    if (HiKeyDetectRebootReason () == TRUE)
+      mBootIndex = HIKEY_BOOT_ENTRY_FASTBOOT;
+  }
 
   Status = HiKeyCreateBootNext ();
   if (EFI_ERROR (Status)) {

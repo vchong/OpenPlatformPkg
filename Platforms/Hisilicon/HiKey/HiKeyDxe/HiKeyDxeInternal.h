@@ -45,4 +45,8 @@ HiKeyUsbPhyInit (
   IN UINT8           Mode
   );
 
+UINTN
+HiKeyGetUsbMode (
+  IN VOID
+  );
 #endif // __HIKEY_DXE_INTERNAL_H__
