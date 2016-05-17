@@ -178,6 +178,21 @@ UartInit (
   MmioWrite32 (PMUSSI_REG(0x1c), Val);
 }
 
+STATIC
+VOID
+MtcmosInit (
+  IN VOID
+  )
+{
+  UINT32     Data;
+
+  /* enable MTCMOS for GPU */
+  MmioWrite32 (AO_CTRL_BASE + SC_PW_MTCMOS_EN0, PW_EN0_G3D);
+  do {
+    Data = MmioRead32 (AO_CTRL_BASE + SC_PW_MTCMOS_ACK_STAT0);
+  } while ((Data & PW_EN0_G3D) == 0);
+}
+
 EFI_STATUS
 HiKeyInitPeripherals (
   IN VOID
@@ -195,6 +210,7 @@ HiKeyInitPeripherals (
   } while (Data & Bits);
 
   UartInit ();
+  MtcmosInit ();
 
   return EFI_SUCCESS;
 }
