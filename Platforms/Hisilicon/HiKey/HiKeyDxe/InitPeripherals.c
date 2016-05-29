@@ -173,6 +173,9 @@ UartInit (
   MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_RSTDIS3, PERIPH_RST3_UART4);
   MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CLKEN3, PERIPH_RST3_UART4);
 
+  /* make DW_MMC2 out of reset */
+  MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_RSTDIS0, PERIPH_RST0_MMC2);
+
   /* enable clock for BT/WIFI */
   Val = MmioRead32 (PMUSSI_REG(0x1c)) | 0x40;
   MmioWrite32 (PMUSSI_REG(0x1c), Val);
