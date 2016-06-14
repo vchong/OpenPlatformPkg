@@ -17,6 +17,7 @@
 #include <Library/BdsLib.h>
 #include <Library/CacheMaintenanceLib.h>
 #include <Library/DevicePathLib.h>
+#include <Library/DxeServicesLib.h>
 #include <Library/IoLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/PrintLib.h>
@@ -690,6 +691,41 @@ CLOSE_PROTOCOL:
 }
 
 STATIC
+EFI_STATUS
+EFIAPI
+HiKeyInstallFdt (
+  VOID
+  )
+{
+  EFI_STATUS              Status;
+  VOID                   *Image;
+  UINTN                   ImageSize, NumPages;
+  EFI_GUID               *Guid;
+  EFI_PHYSICAL_ADDRESS    FdtConfigurationTableBase;
+
+  Guid = &gHiKeyTokenSpaceGuid;
+  Status = GetSectionFromAnyFv (Guid, EFI_SECTION_RAW, 0, &Image, &ImageSize);
+  if (EFI_ERROR (Status))
+    return Status;
+  NumPages = EFI_SIZE_TO_PAGES (ImageSize);
+  Status = gBS->AllocatePages (
+		  AllocateAnyPages, EfiRuntimeServicesData,
+		  NumPages, &FdtConfigurationTableBase
+		  );
+  if (EFI_ERROR (Status))
+    return Status;
+  CopyMem ((VOID *)(UINTN)FdtConfigurationTableBase, Image, ImageSize);
+  Status = gBS->InstallConfigurationTable (
+		  &gFdtTableGuid,
+		  (VOID *)(UINTN)FdtConfigurationTableBase
+		  );
+  if (EFI_ERROR (Status)) {
+    gBS->FreePages (FdtConfigurationTableBase, NumPages);
+  }
+  return Status;
+}
+
+STATIC
 VOID
 EFIAPI
 HiKeyOnEndOfDxe (
@@ -779,6 +815,14 @@ HiKeyOnEndOfDxe (
 
   if (DtbType == HIKEY_DTB_SD) {
     mBootIndex = HIKEY_BOOT_ENTRY_BOOT_SD;
+  } else if (DtbType == HIKEY_DTB_LINUX) {
+    mBootIndex = HIKEY_BOOT_ENTRY_BOOT_EMMC;
+    /* Load DTB file from UEFI binary if boots from eMMC */
+    Status = HiKeyInstallFdt ();
+    if (EFI_ERROR (Status)) {
+      DEBUG ((EFI_D_ERROR, "%a: failed to install Fdt file\n", __func__));
+      return;
+    }
   } else {
     mBootIndex = HIKEY_BOOT_ENTRY_BOOT_EMMC;
   }
