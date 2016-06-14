@@ -815,14 +815,6 @@ HiKeyOnEndOfDxe (
 
   if (DtbType == HIKEY_DTB_SD) {
     mBootIndex = HIKEY_BOOT_ENTRY_BOOT_SD;
-  } else if (DtbType == HIKEY_DTB_LINUX) {
-    mBootIndex = HIKEY_BOOT_ENTRY_BOOT_EMMC;
-    /* Load DTB file from UEFI binary if boots from eMMC */
-    Status = HiKeyInstallFdt ();
-    if (EFI_ERROR (Status)) {
-      DEBUG ((EFI_D_ERROR, "%a: failed to install Fdt file\n", __func__));
-      return;
-    }
   } else {
     mBootIndex = HIKEY_BOOT_ENTRY_BOOT_EMMC;
   }
@@ -838,6 +830,18 @@ HiKeyOnEndOfDxe (
   Status = HiKeyCreateBootNext ();
   if (EFI_ERROR (Status)) {
     DEBUG ((EFI_D_ERROR, "%a: failed to set BootNext variable\n", __func__));
+    return;
+  }
+
+  /*
+   * Priority of Loading DTB file:
+   *   1. Load configured DTB file in grub.cfg.
+   *   2. Load DTB file in UEFI Fv.
+   */
+  /* Load DTB file in UEFI Fv. */
+  Status = HiKeyInstallFdt ();
+  if (EFI_ERROR (Status)) {
+    DEBUG ((EFI_D_ERROR, "%a: failed to install Fdt file\n", __func__));
     return;
   }
 }
