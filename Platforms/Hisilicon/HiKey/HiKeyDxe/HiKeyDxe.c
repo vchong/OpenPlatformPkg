@@ -144,6 +144,24 @@ GetSerialNo (
   OUT UINT8             *Length
   )
 {
+  EFI_STATUS             Status;
+  UINTN                  VariableSize;
+  CHAR16                 DataUnicode[32];
+
+  if (SerialNo == NULL)
+    return EFI_INVALID_PARAMETER;
+  VariableSize = SERIAL_NUMBER_LENGTH * sizeof (CHAR16);
+  Status = gRT->GetVariable (
+                  (CHAR16 *)L"SerialNo",
+                  &gHiKeyVariableGuid,
+                  NULL,
+                  &VariableSize,
+                  &DataUnicode
+                  );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+  CopyMem (SerialNo, DataUnicode, VariableSize);
   return EFI_SUCCESS;
 }
 
