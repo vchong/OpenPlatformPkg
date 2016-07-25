@@ -63,6 +63,13 @@
 #define MDDRC_AXI_BASE                          0xF7120000
 #define AXI_REGION_MAP_OFFSET(x)                ( 0x100 + ( x ) * 0x10 )
 
+#define AO_CTRL_BASE				0xF7800000
+#define SC_PW_MTCMOS_EN0			0x830
+#define SC_PW_MTCMOS_DIS0			0x834
+#define SC_PW_MTCMOS_STAT0			0x838
+#define SC_PW_MTCMOS_ACK_STAT0			0x83c
+#define PW_EN0_G3D				(1 << 1)
+
 #define PMUSSI_BASE                             0xF8000000
 
 #endif	/* __HI6220_H__ */
