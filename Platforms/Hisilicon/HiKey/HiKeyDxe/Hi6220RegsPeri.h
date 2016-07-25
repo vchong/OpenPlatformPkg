@@ -18,8 +18,12 @@
 
 #define SC_PERIPH_CLKEN3                0x230
 #define SC_PERIPH_RSTEN3                0x330
+#define SC_PERIPH_RSTDIS0               0x304
 #define SC_PERIPH_RSTDIS3               0x334
 #define SC_PERIPH_RSTSTAT3              0x338
+
+/* SC_PERIPH_RSTEN0/RSTDIS0/RSTSTAT0 */
+#define PERIPH_RST0_MMC2                (1 << 2)
 
 /* SC_PERIPH_RSTEN3/RSTDIS3/RSTSTAT3 */
 #define PERIPH_RST3_CSSYS               (1 << 0)
