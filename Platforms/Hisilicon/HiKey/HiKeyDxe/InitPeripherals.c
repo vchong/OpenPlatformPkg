@@ -173,9 +173,27 @@ UartInit (
   MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_RSTDIS3, PERIPH_RST3_UART4);
   MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CLKEN3, PERIPH_RST3_UART4);
 
+  /* make DW_MMC2 out of reset */
+  MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_RSTDIS0, PERIPH_RST0_MMC2);
+
   /* enable clock for BT/WIFI */
   Val = MmioRead32 (PMUSSI_REG(0x1c)) | 0x40;
   MmioWrite32 (PMUSSI_REG(0x1c), Val);
+}
+
+STATIC
+VOID
+MtcmosInit (
+  IN VOID
+  )
+{
+  UINT32     Data;
+
+  /* enable MTCMOS for GPU */
+  MmioWrite32 (AO_CTRL_BASE + SC_PW_MTCMOS_EN0, PW_EN0_G3D);
+  do {
+    Data = MmioRead32 (AO_CTRL_BASE + SC_PW_MTCMOS_ACK_STAT0);
+  } while ((Data & PW_EN0_G3D) == 0);
 }
 
 EFI_STATUS
@@ -195,6 +213,7 @@ HiKeyInitPeripherals (
   } while (Data & Bits);
 
   UartInit ();
+  MtcmosInit ();
 
   return EFI_SUCCESS;
 }
