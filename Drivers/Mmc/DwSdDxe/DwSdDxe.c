@@ -287,6 +287,10 @@ SendCommand (
   MmioWrite32 (DWSD_RINTSTS, ~0);
   MmioWrite32 (DWSD_CMDARG, Argument);
   MicroSecondDelay(500);
+  // Wait until MMC is idle
+  do {
+    Data = MmioRead32 (DWSD_STATUS);
+  } while (Data & DWSD_STS_DATA_BUSY);
 
   MmioWrite32 (DWSD_CMD, MmcCmd);
 
