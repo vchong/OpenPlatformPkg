@@ -37,6 +37,8 @@
 
 #define DWSD_DMA_THRESHOLD	16
 
+#define MAX_IDLE_LOOPS		1000000
+
 typedef struct {
   UINT32		Des0;
   UINT32		Des1;
@@ -165,7 +167,7 @@ DwSdSetClock (
   IN UINTN                     ClockFreq
   )
 {
-  UINT32 Divider, Rate, Data;
+  UINT32 Divider, Rate, Data, Count;
   EFI_STATUS Status;
   BOOLEAN Found = FALSE;
 
@@ -180,8 +182,11 @@ DwSdSetClock (
     return EFI_NOT_FOUND;
 
   // Wait until MMC is idle
+  Count = 0;
   do {
     Data = MmioRead32 (DWSD_STATUS);
+    if (Count++ > MAX_IDLE_LOOPS)
+      break;
   } while (Data & DWSD_STS_DATA_BUSY);
 
   // Disable MMC clock first
@@ -282,11 +287,18 @@ SendCommand (
   IN UINT32                     Argument
   )
 {
-  UINT32      Data, ErrMask;
+  UINT32      Data, ErrMask, Count;
 
   MmioWrite32 (DWSD_RINTSTS, ~0);
   MmioWrite32 (DWSD_CMDARG, Argument);
   MicroSecondDelay(500);
+  // Wait until MMC is idle
+  Count = 0;
+  do {
+    Data = MmioRead32 (DWSD_STATUS);
+    if (Count++ > MAX_IDLE_LOOPS)
+      break;
+  } while (Data & DWSD_STS_DATA_BUSY);
 
   MmioWrite32 (DWSD_CMD, MmcCmd);
 
