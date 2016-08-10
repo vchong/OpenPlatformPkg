@@ -29,7 +29,7 @@
 
 #include "HiKeyDxeInternal.h"
 
-#define SERIAL_NUMBER_LENGTH        17
+#define SERIAL_NUMBER_LENGTH        16
 #define SERIAL_NUMBER_LBA           1024
 #define SERIAL_NUMBER_BLOCK_SIZE    512
 #define RANDOM_MAGIC                0x9a4dbeaf
