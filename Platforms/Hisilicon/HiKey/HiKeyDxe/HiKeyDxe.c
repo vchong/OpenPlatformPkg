@@ -29,7 +29,7 @@
 
 #include "HiKeyDxeInternal.h"
 
-#define SERIAL_NUMBER_LENGTH        16
+#define SERIAL_NUMBER_LENGTH        17
 #define SERIAL_NUMBER_LBA           1024
 #define SERIAL_NUMBER_BLOCK_SIZE    512
 #define RANDOM_MAGIC                0x9a4dbeaf
@@ -110,6 +110,8 @@ HiKeyInitSerialNo (
     }
     CopyMem (mSerialNo, DefaultSerialNo, sizeof (DefaultSerialNo));
   } else {
+    ZeroMem (DataUnicode, 32 * sizeof(CHAR16));
+    ZeroMem (SerialNoUnicode, 32 * sizeof(CHAR16));
     AsciiStrToUnicodeStr (Random->SerialNo, SerialNoUnicode);
     VariableSize = SERIAL_NUMBER_LENGTH * sizeof (CHAR16);
     Status = gRT->GetVariable (
@@ -151,6 +153,7 @@ GetSerialNo (
   if (SerialNo == NULL)
     return EFI_INVALID_PARAMETER;
   VariableSize = SERIAL_NUMBER_LENGTH * sizeof (CHAR16);
+  ZeroMem (DataUnicode, 32 * sizeof(CHAR16));
   Status = gRT->GetVariable (
                   (CHAR16 *)L"SerialNo",
                   &gHiKeyVariableGuid,
