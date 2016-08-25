@@ -630,11 +630,28 @@ HiKeyFastbootPlatformGetVar (
   FASTBOOT_PARTITION_LIST *Entry;
   CHAR16                   PartitionNameUnicode[60];
   BOOLEAN                  PartitionFound;
+  CHAR16                   DataUnicode[17];
+  UINTN                    VariableSize;
 
   if (!AsciiStrCmp (Name, "max-download-size")) {
     AsciiStrCpy (Value, FixedPcdGetPtr (PcdArmFastbootFlashLimit));
   } else if (!AsciiStrCmp (Name, "product")) {
     AsciiStrCpy (Value, FixedPcdGetPtr (PcdFirmwareVendor));
+  } else if (!AsciiStrCmp (Name, "serialno")) {
+    VariableSize = 17 * sizeof (CHAR16);
+    Status = gRT->GetVariable (
+                    (CHAR16 *)L"SerialNo",
+                    &gHiKeyVariableGuid,
+                    NULL,
+                    &VariableSize,
+                    &DataUnicode
+                    );
+    if (EFI_ERROR (Status)) {
+      *Value = '\0';
+      return EFI_NOT_FOUND;
+    }
+    DataUnicode[(VariableSize / sizeof(CHAR16)) - 1] = '\0';
+    UnicodeStrToAsciiStr (DataUnicode, Value);
   } else if ( !AsciiStrnCmp (Name, "partition-size", 14)) {
     AsciiStrToUnicodeStr ((Name + 15), PartitionNameUnicode);
     PartitionFound = FALSE;
