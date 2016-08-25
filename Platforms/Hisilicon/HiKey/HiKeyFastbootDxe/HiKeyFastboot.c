@@ -363,6 +363,7 @@ HiKeyFastbootPlatformFlashPartition (
   CHUNK_HEADER            *ChunkHeader;
   UINTN                    Offset = 0;
   UINT32                   Chunk, EntrySize, EntryOffset;
+  UINT32                  *FillVal, TmpCount, FillBuf[1024];
   VOID                    *Buffer;
 
 
@@ -468,6 +469,27 @@ HiKeyFastbootPlatformFlashPartition (
             return Status;
           }
           Image+=WriteSize;
+          break;
+        case CHUNK_TYPE_FILL:
+          //Assume fillVal is 0, and we can skip here
+          FillVal = (UINT32 *)Image;
+          Image += sizeof(UINT32);
+          if (*FillVal != 0){
+            mTextOut->OutputString(mTextOut, OutputString);
+            for(TmpCount = 0; TmpCount < 1024; TmpCount++){
+                FillBuf[TmpCount] = *FillVal;
+            }
+            for (TmpCount= 0; TmpCount < WriteSize; TmpCount += sizeof(FillBuf)) {
+                if ((WriteSize - TmpCount) < sizeof(FillBuf)) {
+                  Status = DiskIo->WriteDisk (DiskIo, MediaId, Offset + TmpCount, WriteDisk - TmpCount, FillBuf);
+                } else {
+                  Status = DiskIo->WriteDisk (DiskIo, MediaId, Offset + TmpCount, sizeof(FillBuf), FillBuf);
+                }
+                if (EFI_ERROR (Status)) {
+                    return Status;
+                }
+            }
+          }
           break;
         case CHUNK_TYPE_DONT_CARE:
           break;
