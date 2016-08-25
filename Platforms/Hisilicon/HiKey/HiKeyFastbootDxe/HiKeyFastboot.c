@@ -363,6 +363,7 @@ HiKeyFastbootPlatformFlashPartition (
   CHUNK_HEADER            *ChunkHeader;
   UINTN                    Offset = 0;
   UINT32                   Chunk, EntrySize, EntryOffset;
+  UINT32                  *FillVal, TmpCount, FillBuf[1024];
   VOID                    *Buffer;
 
 
@@ -468,6 +469,27 @@ HiKeyFastbootPlatformFlashPartition (
             return Status;
           }
           Image+=WriteSize;
+          break;
+        case CHUNK_TYPE_FILL:
+          //Assume fillVal is 0, and we can skip here
+          FillVal = (UINT32 *)Image;
+          Image += sizeof(UINT32);
+          if (*FillVal != 0){
+            mTextOut->OutputString(mTextOut, OutputString);
+            for(TmpCount = 0; TmpCount < 1024; TmpCount++){
+                FillBuf[TmpCount] = *FillVal;
+            }
+            for (TmpCount= 0; TmpCount < WriteSize; TmpCount += sizeof(FillBuf)) {
+                if ((WriteSize - TmpCount) < sizeof(FillBuf)) {
+                  Status = DiskIo->WriteDisk (DiskIo, MediaId, Offset + TmpCount, WriteSize - TmpCount, FillBuf);
+                } else {
+                  Status = DiskIo->WriteDisk (DiskIo, MediaId, Offset + TmpCount, sizeof(FillBuf), FillBuf);
+                }
+                if (EFI_ERROR (Status)) {
+                    return Status;
+                }
+            }
+          }
           break;
         case CHUNK_TYPE_DONT_CARE:
           break;
@@ -630,11 +652,28 @@ HiKeyFastbootPlatformGetVar (
   FASTBOOT_PARTITION_LIST *Entry;
   CHAR16                   PartitionNameUnicode[60];
   BOOLEAN                  PartitionFound;
+  CHAR16                   DataUnicode[17];
+  UINTN                    VariableSize;
 
   if (!AsciiStrCmp (Name, "max-download-size")) {
     AsciiStrCpy (Value, FixedPcdGetPtr (PcdArmFastbootFlashLimit));
   } else if (!AsciiStrCmp (Name, "product")) {
     AsciiStrCpy (Value, FixedPcdGetPtr (PcdFirmwareVendor));
+  } else if (!AsciiStrCmp (Name, "serialno")) {
+    VariableSize = 17 * sizeof (CHAR16);
+    Status = gRT->GetVariable (
+                    (CHAR16 *)L"SerialNo",
+                    &gHiKeyVariableGuid,
+                    NULL,
+                    &VariableSize,
+                    &DataUnicode
+                    );
+    if (EFI_ERROR (Status)) {
+      *Value = '\0';
+      return EFI_NOT_FOUND;
+    }
+    DataUnicode[(VariableSize / sizeof(CHAR16)) - 1] = '\0';
+    UnicodeStrToAsciiStr (DataUnicode, Value);
   } else if ( !AsciiStrnCmp (Name, "partition-size", 14)) {
     AsciiStrToUnicodeStr ((Name + 15), PartitionNameUnicode);
     PartitionFound = FALSE;
