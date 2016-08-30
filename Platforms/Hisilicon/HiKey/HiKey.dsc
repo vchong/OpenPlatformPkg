@@ -257,7 +257,7 @@
   gEmbeddedTokenSpaceGuid.PcdEmbeddedDefaultTextColor|0x07
   gEmbeddedTokenSpaceGuid.PcdEmbeddedMemVariableStoreSize|0x10000
 
-  gArmPlatformTokenSpaceGuid.PcdFirmwareVendor|"Hisilicon HiKey"
+  gArmPlatformTokenSpaceGuid.PcdFirmwareVendor|"hikey"
   gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareVersionString|L"Alpha"
   gEmbeddedTokenSpaceGuid.PcdEmbeddedPrompt|"HiKey"
 
