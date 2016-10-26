@@ -35,6 +35,7 @@
   UefiBootServicesTableLib
   UefiRuntimeServicesTableLib
   UefiDriverEntryPoint
+  TimerLib
 
 [Protocols]
   gAndroidFastbootPlatformProtocolGuid

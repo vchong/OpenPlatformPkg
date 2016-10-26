@@ -33,6 +33,7 @@
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiRuntimeServicesTableLib.h>
 #include <Library/PrintLib.h>
+#include <Library/TimerLib.h>
 
 #include <Guid/HiKeyVariable.h>
 
@@ -557,6 +558,7 @@ HiKeyFastbootPlatformFlashPartition (
   }
 
   BlockIo->FlushBlocks(BlockIo);
+  MicroSecondDelay (50000);
 
   return Status;
 }
