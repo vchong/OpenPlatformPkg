@@ -339,6 +339,13 @@
   gArmTokenSpaceGuid.PcdArmArchTimerFreqInHz|1920000
   gEmbeddedTokenSpaceGuid.PcdMetronomeTickPeriod|1000
 
+  #
+  # Ufs
+  #
+  gDwUfsHcDxeTokenSpaceGuid.PcdDwUfsHcDxeBaseAddress|0xFF3B0000
+
+  #
+
 
 ################################################################################
 #
@@ -427,6 +434,14 @@
   MdeModulePkg/Universal/Disk/DiskIoDxe/DiskIoDxe.inf
   MdeModulePkg/Universal/Disk/PartitionDxe/PartitionDxe.inf
   MdeModulePkg/Universal/Disk/UnicodeCollation/EnglishDxe/EnglishDxe.inf
+
+  #
+  # Ufs
+  #
+  MdeModulePkg/Bus/Scsi/ScsiBusDxe/ScsiBusDxe.inf
+  MdeModulePkg/Bus/Scsi/ScsiDiskDxe/ScsiDiskDxe.inf
+  MdeModulePkg/Bus/Ufs/UfsPassThruDxe/UfsPassThruDxe.inf
+  OpenPlatformPkg/Drivers/Block/DwUfsHcDxe/DwUfsHcDxe.inf
 
   #
   # Bds
