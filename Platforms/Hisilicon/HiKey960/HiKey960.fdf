@@ -128,6 +128,19 @@ READ_LOCK_STATUS   = TRUE
   INF MdeModulePkg/Bus/Usb/UsbMassStorageDxe/UsbMassStorageDxe.inf
 
   #
+  # USB Peripheral Support
+  #
+  INF EmbeddedPkg/Drivers/AndroidFastbootTransportUsbDxe/FastbootTransportUsbDxe.inf
+  INF OpenPlatformPkg/Drivers/Usb/DwUsbDxe/DwUsbDxe.inf
+  INF OpenPlatformPkg/Platforms/Hisilicon/HiKey960/HiKey960FastbootDxe/HiKey960FastbootDxe.inf
+  INF OpenPlatformPkg/Platforms/Hisilicon/HiKey960/HiKey960UsbDxe/HiKey960UsbDxe.inf
+
+  #
+  # Fastboot
+  #
+  INF EmbeddedPkg/Application/AndroidFastboot/AndroidFastbootApp.inf
+
+  #
   # UEFI Network Stack
   #
   INF MdeModulePkg/Universal/Network/DpcDxe/DpcDxe.inf
