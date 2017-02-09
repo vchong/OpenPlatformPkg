@@ -150,6 +150,11 @@ READ_LOCK_STATUS   = TRUE
   INF EmbeddedPkg/Application/AndroidFastboot/AndroidFastbootApp.inf
 
   #
+  # Android Loader
+  #
+  INF EmbeddedPkg/Application/AndroidBoot/AndroidBootApp.inf
+
+  #
   # UEFI Network Stack
   #
   INF MdeModulePkg/Universal/Network/DpcDxe/DpcDxe.inf
