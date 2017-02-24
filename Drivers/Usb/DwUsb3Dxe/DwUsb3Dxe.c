@@ -1688,7 +1688,6 @@ UsbStatus (
 {
   if (online) {
 }
-#endif
 
 VOID
 DwUsb3SetConfig (
@@ -1699,6 +1698,7 @@ DwUsb3SetConfig (
   UINT16         wvalue = ctrl->wValue;
   usb3_pcd_ep_t     *ep;
 
+DEBUG ((DEBUG_ERROR, "#%a, %d, wvalue:0x%x\n", __func__, __LINE__, wvalue));
   if (ctrl->bmRequestType != (UT_WRITE | UT_STANDARD | UT_DEVICE)) {
     EndPoint0DoStall (pcd);
     return;
@@ -1730,12 +1730,14 @@ DwUsb3SetConfig (
     } else {
       pcd->state = USB3_STATE_ADDRESSED;
     }
+DEBUG ((DEBUG_ERROR, "#%a, %d, state:%d\n", __func__, __LINE__, pcd->state));
     pcd->ep0.is_in = 1;
     pcd->ep0state = EP0_IN_WAIT_NRDY;
   } else {
     EndPoint0DoStall (pcd);
   }
 }
+#endif
 
 STATIC
 VOID
@@ -1768,6 +1770,7 @@ DwUsb3DoSetConfig (
   UINT16  wvalue = ctrl->wValue;
   usb3_pcd_ep_t  *ep;
 
+DEBUG ((DEBUG_ERROR, "#%a, %d, wvalue:0x%x\n", __func__, __LINE__, wvalue));
   if (ctrl->bmRequestType != (UT_WRITE | UT_STANDARD | UT_DEVICE)) {
     EndPoint0DoStall (pcd);
     return;
@@ -1795,6 +1798,7 @@ DwUsb3DoSetConfig (
     } else {
       pcd->state = USB3_STATE_ADDRESSED;
     }
+DEBUG ((DEBUG_ERROR, "#%a, %d, state:%d\n", __func__, __LINE__, pcd->state));
     pcd->ep0.is_in = 1;
     pcd->ep0state = EP0_IN_WAIT_NRDY;
   } else {
@@ -2028,9 +2032,9 @@ DEBUG ((DEBUG_ERROR, "#%a, %d, bRequest:0x%x, three stage:%d\n", __func__, __LIN
     break;
   case UR_SET_CONFIG:
     DwUsb3DoSetConfig (pcd);
-    MmioAnd32 (DCTL, DCTL_ACCEPT_U1_EN);
-    MmioAnd32 (DCTL, DCTL_ACCEPT_U2_EN);
-    DEBUG ((DEBUG_INFO, "enum done"));
+    MmioOr32 (DCTL, DCTL_ACCEPT_U1_EN);
+    MmioOr32 (DCTL, DCTL_ACCEPT_U2_EN);
+    DEBUG ((DEBUG_ERROR, "enum done"));
     pcd->ltm_enable = 0;
     break;
   case UR_GET_CONFIG:
