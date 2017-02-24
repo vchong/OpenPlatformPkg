@@ -249,8 +249,7 @@ Handshake (
       return 1;
     }
     MicroSecondDelay (1);
-    Timeout--;
-  } while (Timeout > 0);
+  } while (Timeout-- > 0);
   return 0;
 }
 
@@ -289,7 +288,7 @@ DwUsb3DepStartNewCfg (
   /* start the command */
   MmioWrite32 (
     DEPCMD (EpIdx),
-    DEPCMD_XFER_RSRC_IDX (RsrcIdx) | CMDTYPE_START_NEW_CFG | DEPCMD_CMDACT
+    DEPCMD_XFER_RSRC_IDX (RsrcIdx) | DEPCMD_CMDTYPE (CMDTYPE_START_NEW_CFG) | DEPCMD_CMDACT
     );
   Handshake (DEPCMD (EpIdx), DEPCMD_CMDACT, 0);
 }
@@ -306,7 +305,7 @@ DwUsb3DepCfg (
   MmioWrite32 (DEPCMDPAR2 (EpIdx), DepCfg2);
   MmioWrite32 (DEPCMDPAR1 (EpIdx), DepCfg1);
   MmioWrite32 (DEPCMDPAR0 (EpIdx), DepCfg0);
-  MmioWrite32 (DEPCMD (EpIdx), CMDTYPE_SET_EP_CFG | DEPCMD_CMDACT);
+  MmioWrite32 (DEPCMD (EpIdx), DEPCMD_CMDTYPE (CMDTYPE_SET_EP_CFG) | DEPCMD_CMDACT);
   Handshake (DEPCMD (EpIdx), DEPCMD_CMDACT, 0);
 }
 
@@ -318,7 +317,7 @@ DwUsb3DepXferCfg (
   )
 {
   MmioWrite32 (DEPCMDPAR0 (EpIdx), DepStrmCfg);
-  MmioWrite32 (DEPCMD (EpIdx), CMDTYPE_SET_XFER_CFG | DEPCMD_CMDACT);
+  MmioWrite32 (DEPCMD (EpIdx), DEPCMD_CMDTYPE (CMDTYPE_SET_XFER_CFG) | DEPCMD_CMDACT);
   Handshake (DEPCMD (EpIdx), DEPCMD_CMDACT, 0);
 }
 
@@ -336,7 +335,7 @@ DwUsb3DepStartXfer (
   MmioWrite32 (DEPCMDPAR0 (EpIdx), (UINT32)(DmaAddr >> 32));
   MmioWrite32 (
     DEPCMD (EpIdx),
-    DEPCMD_STR_NUM_OR_UF (StreamOrUf) | CMDTYPE_START_XFER | DEPCMD_CMDACT
+    DEPCMD_STR_NUM_OR_UF (StreamOrUf) | DEPCMD_CMDTYPE (CMDTYPE_START_XFER) | DEPCMD_CMDACT
     );
   Handshake (DEPCMD (EpIdx), DEPCMD_CMDACT, 0);
   Data = MmioRead32 (DEPCMD (EpIdx));
@@ -355,7 +354,7 @@ DwUsb3DepStopXfer (
   MmioWrite32 (DEPCMDPAR0 (EpIdx), 0);
   MmioWrite32 (
     DEPCMD (EpIdx),
-    DEPCMD_XFER_RSRC_IDX (Tri) | CMDTYPE_END_XFER | DEPCMD_CMDACT
+    DEPCMD_XFER_RSRC_IDX (Tri) | DEPCMD_CMDTYPE (CMDTYPE_END_XFER) | DEPCMD_CMDACT
     );
   Handshake (DEPCMD (EpIdx), DEPCMD_CMDACT, 0);
 }
@@ -368,7 +367,7 @@ DwUsb3DepUpdateXfer (
 {
   MmioWrite32 (
     DEPCMD (EpIdx),
-    DEPCMD_XFER_RSRC_IDX (Tri) | CMDTYPE_UPDATE_XFER | DEPCMD_CMDACT
+    DEPCMD_XFER_RSRC_IDX (Tri) | DEPCMD_CMDTYPE (CMDTYPE_UPDATE_XFER) | DEPCMD_CMDACT
     );
   Handshake (DEPCMD (EpIdx), DEPCMD_CMDACT, 0);
 }
@@ -379,7 +378,7 @@ DwUsb3DepClearStall (
   IN UINTN            EpIdx
   )
 {
-  MmioWrite32 (DEPCMD (EpIdx), CMDTYPE_CLR_STALL | DEPCMD_CMDACT);
+  MmioWrite32 (DEPCMD (EpIdx), DEPCMD_CMDTYPE (CMDTYPE_CLR_STALL) | DEPCMD_CMDACT);
   Handshake (DEPCMD (EpIdx), DEPCMD_CMDACT, 0);
 }
 
@@ -390,7 +389,7 @@ DwUsb3DepSetStall (
   IN UINTN            EpIdx
   )
 {
-  MmioWrite32 (DEPCMD (EpIdx), CMDTYPE_SET_STALL | DEPCMD_CMDACT);
+  MmioWrite32 (DEPCMD (EpIdx), DEPCMD_CMDTYPE (CMDTYPE_SET_STALL) | DEPCMD_CMDACT);
   Handshake (DEPCMD (EpIdx), DEPCMD_CMDACT, 0);
 }
 
@@ -436,7 +435,7 @@ DwUsb3Ep0Activate (
   DwUsb3DepCfg (
     EP_IN_IDX (0),
     EPCFG0_EPTYPE (EPTYPE_CONTROL)  | EPCFG0_MPS (512) | EPCFG0_TXFNUM (pcd->ep0.tx_fifo_num),
-    EPCFG1_XFER_NRDY | EPCFG1_XFER_CMPL | EPCFG1_EP_DIR,
+    EPCFG1_XFER_NRDY | EPCFG1_XFER_CMPL | EPCFG1_EP_DIR_IN,
     0
     );
   /* issue DEPSTRMCFG command to EP0 IN */
@@ -466,7 +465,7 @@ DwUsb3EpActivate (
      */
     DepCfg0 = EPCFG0_EPTYPE (EPTYPE_CONTROL);
     DepCfg0 |= EPCFG0_CFG_ACTION (CFG_ACTION_MODIFY);
-    DepCfg1 = EPCFG1_XFER_CMPL | EPCFG1_XFER_NRDY | EPCFG1_EP_DIR;
+    DepCfg1 = EPCFG1_XFER_CMPL | EPCFG1_XFER_NRDY | EPCFG1_EP_DIR_IN;
 
     switch (pcd->speed) {
     case USB_SPEED_SUPER:
@@ -495,7 +494,7 @@ DwUsb3EpActivate (
   DepCfg0 |= EPCFG0_BRSTSIZ (ep->maxburst);
   DepCfg1 = EPCFG1_EP_NUM (ep->num);
   if (ep->is_in) {
-    DepCfg1 |= EPCFG1_EP_DIR;
+    DepCfg1 |= EPCFG1_EP_DIR_IN;
   } else {
     DepCfg1 |= EPCFG1_XFER_CMPL;
   }
@@ -816,7 +815,7 @@ DwUsb3HandleConnectDoneInterrupt (
   DwUsb3PcdSetSpeed (pcd, Speed);
   // set the MPS of EP0 based on the connection speed
   DiepCfg0 = EPCFG0_EPTYPE (EPTYPE_CONTROL) | EPCFG0_CFG_ACTION (CFG_ACTION_MODIFY);
-  DiepCfg1 = EPCFG1_XFER_CMPL | EPCFG1_XFER_NRDY | EPCFG1_EP_DIR;
+  DiepCfg1 = EPCFG1_XFER_CMPL | EPCFG1_XFER_NRDY | EPCFG1_EP_DIR_IN;
   DoepCfg0 = EPCFG0_EPTYPE (EPTYPE_CONTROL) | EPCFG0_CFG_ACTION (CFG_ACTION_MODIFY);
   DoepCfg1 = EPCFG1_XFER_CMPL | EPCFG1_XFER_NRDY;
 
@@ -996,7 +995,7 @@ DwUsb3OsGetTrb (
 
 STATIC
 VOID
-DwUsb3StartXfer (
+DwUsb3EndPoint0StartTransfer (
   IN usb3_pcd_t       *pcd,
   IN usb3_pcd_req_t   *req
   )
@@ -1062,6 +1061,97 @@ DwUsb3StartXfer (
   }
 }
 
+#if 0
+INTN
+DwUsb3EndPointXStartTransfer (
+  IN usb3_pcd_t       *pcd,
+  IN usb3_pcd_ep_t    *ep
+  )
+{
+  usb3_pcd_req_t      *req = &ep->req;
+  usb3_dma_desc_t     *desc;
+  UINT64              desc_dma;
+  UINT32              len;
+
+  // get the TRB for this request
+  DwUsb3OsGetTrb (pcd, ep, req);
+  desc = req->trb;
+  desc_dma = req->trbdma;
+
+  if (ep->is_in) {
+    // For IN, TRB length is just xfer length
+    len = req->length;
+    if (ep->xfer_started && !(desc->control & DSCCTL_HWO)) {
+      DEBUG ((DEBUG_INFO, "[%a] last tx succ, but not in 10s!\n", __func__));
+      ep->xfer_started = 0;
+    }
+  } else {
+    // For OUT, TRB length must be multiple of maxpacket
+    // must be power of 2, use cheap AND
+    len = (req->length + ep->maxpacket - 1) & ~(ep->maxpacket - 1);
+    req->length = len;
+  }
+  // DMA descriptor setup
+  DwUsb3FillDesc (
+    desc,
+    (UINT64)req->bufdma,
+    len,
+    0,
+    TRBCTL_NORMAL,
+    DSCCTL_IOC | DSCCTL_ISP | DSCCTL_LST,
+    1
+    );
+  if (ep->is_in) {
+    // start DMA on EPn IN
+    if (ep->xfer_started) {
+      // issue DEPUPDTXFER command to EP
+      DwUsb3DepUpdateXfer (EP_IN_IDX (ep->num), ep->tri_in);
+    } else {
+      ep->tri_in = DwUsb3DepStartXfer (EP_IN_IDX (ep->num), desc_dma, 0);
+      ep->xfer_started = 1;
+    }
+  } else {
+    // start DMA on EPn OUT
+    if (ep->xfer_started) {
+      // issue DEPUPDTXFER command to EP
+      DwUsb3DepUpdateXfer (EP_OUT_IDX (ep->num), ep->tri_out);
+    } else {
+      ep->tri_out = DwUsb3DepStartXfer (EP_OUT_IDX (ep->num), desc_dma, 0);
+      ep->xfer_started = 1;
+    }
+  }
+  if (ep->is_in) {
+    UINT32       count = 0;
+    // wait until send complete
+    while ((desc->control & DSCCTL_HWO) && (count < 1000000)) {
+      MicroSecondDelay (10);
+      count++;
+    }
+    if (count >= 1000000) {
+      DEBUG ((DEBUG_INFO, "[%a]: ep%d transfer timeout!\n", __func__, ep->num));
+      DEBUG ((DEBUG_INFO, "please disconnect then connect USB cable again to recovery!\n"));
+      return -1;
+    }
+    ep->xfer_started = 0;
+  }
+  return 0;
+}
+
+STATIC
+VOID
+DwUsb3EndPointXStopTransfer (
+  IN usb3_pcd_t       *pcd,
+  IN usb3_pcd_ep_t    *ep
+  )
+{
+  if (ep->is_in) {
+    DwUsb3DepStopXfer (EP_IN_IDX (ep->num), ep->tri_in);
+  } else {
+    DwUsb3DepStopXfer (EP_OUT_IDX (ep->num), ep->tri_out);
+  }
+}
+#endif
+
 STATIC
 VOID
 SetupInStatusPhase (
@@ -1079,7 +1169,7 @@ SetupInStatusPhase (
   pcd->ep0_req.bufdma = buf;
   pcd->ep0_req.length = 0;
   pcd->ep0_req.actual = 0;
-  DwUsb3StartXfer (pcd, &pcd->ep0_req);
+  DwUsb3EndPoint0StartTransfer (pcd, &pcd->ep0_req);
 }
 
 STATIC
@@ -1099,7 +1189,7 @@ SetupOutStatusPhase (
   pcd->ep0_req.bufdma = buf;
   pcd->ep0_req.length = 0;
   pcd->ep0_req.actual = 0;
-  DwUsb3StartXfer (pcd, &pcd->ep0_req);
+  DwUsb3EndPoint0StartTransfer (pcd, &pcd->ep0_req);
 }
 
 STATIC
@@ -1278,7 +1368,7 @@ DwUsb3DoGetStatus (
   pcd->ep0_req.bufdma = (UINT64 *)status;
   pcd->ep0_req.length = 2;
   pcd->ep0_req.actual = 0;
-  DwUsb3StartXfer (pcd, &pcd->ep0_req);
+  DwUsb3EndPoint0StartTransfer (pcd, &pcd->ep0_req);
 }
 
 STATIC
@@ -1555,7 +1645,7 @@ DwUsb3DoGetConfig (
   pcd->ep0_req.bufdma = (UINT64 *)status;
   pcd->ep0_req.length = 1;
   pcd->ep0_req.actual = 0;
-  DwUsb3StartXfer (pcd, &pcd->ep0_req);
+  DwUsb3EndPoint0StartTransfer (pcd, &pcd->ep0_req);
 }
 
 STATIC
@@ -1777,7 +1867,7 @@ DwUsb3DoGetDescriptor (
   pcd->ep0_req.bufdma = (UINT64 *)pcd->ep0_status_buf;
   pcd->ep0_req.length = value < len ? value : len;
   pcd->ep0_req.actual = 0;
-  DwUsb3StartXfer (pcd, &pcd->ep0_req);
+  DwUsb3EndPoint0StartTransfer (pcd, &pcd->ep0_req);
 }
 
 STATIC
@@ -1844,7 +1934,7 @@ DwUsb3DoSetup (
     pcd->ep0_req.length = USB3_STATUS_BUF_SIZE;
     pcd->ep0_req.actual = 0;
     ep0->send_zlp = 0;
-    DwUsb3StartXfer (pcd, &pcd->ep0_req);
+    DwUsb3EndPoint0StartTransfer (pcd, &pcd->ep0_req);
     break;
   default:
     EndPoint0DoStall (pcd);
@@ -2021,8 +2111,8 @@ DwUsb3HandleEvent (
 DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
       }
     } else {
-DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
       PhySep = (Event & GEVNT_DEPEVT_EPNUM_MASK) >> GEVNT_DEPEVT_EPNUM_SHIFT;
+DEBUG ((DEBUG_ERROR, "#%a, %d epnum:%d, event:0x%x\n", __func__, __LINE__, PhySep, Event));
       DwUsb3HandleEndPointInterrupt (pcd, PhySep, Event);
     }
   }
@@ -2051,102 +2141,10 @@ DwUsb3Start (
   IN USB_DEVICE_TX_CALLBACK   TxCallback
   )
 {
-#if 0
-  UINT8                    *Ptr;
-  EFI_STATUS                Status;
-  EFI_EVENT                 TimerEvent;
-  UINTN                     StringDescriptorSize;
-
-  ASSERT (DeviceDescriptor != NULL);
-  ASSERT (Descriptors[0] != NULL);
-  ASSERT (RxCallback != NULL);
-  ASSERT (TxCallback != NULL);
-
-  StringDescriptorSize = sizeof (EFI_USB_STRING_DESCRIPTOR) +
-	                 sizeof (mLangString) + 1;
-  mLangStringDescriptor = AllocateZeroPool (StringDescriptorSize);
-  ASSERT (mLangStringDescriptor != NULL);
-  mLangStringDescriptor->Length = sizeof (mLangString);
-  mLangStringDescriptor->DescriptorType = USB_DESC_TYPE_STRING;
-  CopyMem (mLangStringDescriptor->String, mLangString,
-	   mLangStringDescriptor->Length);
-
-  StringDescriptorSize = sizeof (EFI_USB_STRING_DESCRIPTOR) +
-	                 sizeof (mManufacturerString) + 1;
-  mManufacturerStringDescriptor = AllocateZeroPool (StringDescriptorSize);
-  ASSERT (mManufacturerStringDescriptor != NULL);
-  mManufacturerStringDescriptor->Length = sizeof (mManufacturerString);
-  mManufacturerStringDescriptor->DescriptorType = USB_DESC_TYPE_STRING;
-  CopyMem (mManufacturerStringDescriptor->String, mManufacturerString,
-	   mManufacturerStringDescriptor->Length);
-
-  StringDescriptorSize = sizeof (EFI_USB_STRING_DESCRIPTOR) +
-	                 sizeof (mProductString) + 1;
-  mProductStringDescriptor = AllocateZeroPool (StringDescriptorSize);
-  ASSERT (mProductStringDescriptor != NULL);
-  mProductStringDescriptor->Length = sizeof (mProductString);
-  mProductStringDescriptor->DescriptorType = USB_DESC_TYPE_STRING;
-  CopyMem (mProductStringDescriptor->String, mProductString,
-	   mProductStringDescriptor->Length);
-
-  StringDescriptorSize = sizeof (EFI_USB_STRING_DESCRIPTOR) +
-	                 sizeof (mSerialString) + 1;
-  mSerialStringDescriptor = AllocateZeroPool (StringDescriptorSize);
-  ASSERT (mSerialStringDescriptor != NULL);
-  mSerialStringDescriptor->Length = sizeof (mSerialString);
-  mSerialStringDescriptor->DescriptorType = USB_DESC_TYPE_STRING;
-  CopyMem (mSerialStringDescriptor->String, mSerialString,
-	   mSerialStringDescriptor->Length);
-
-  DwUsb3Init();
-
-  mDeviceDescriptor = DeviceDescriptor;
-  mDescriptors = Descriptors[0];
-
-  // Right now we just support one configuration
-  ASSERT (mDeviceDescriptor->NumConfigurations == 1);
-  mDeviceDescriptor->StrManufacturer = 1;
-  mDeviceDescriptor->StrProduct = 2;
-  mDeviceDescriptor->StrSerialNumber = 3;
-  // ... and one interface
-  mConfigDescriptor = (USB_CONFIG_DESCRIPTOR *)mDescriptors;
-  ASSERT (mConfigDescriptor->NumInterfaces == 1);
-
-  Ptr = ((UINT8 *) mDescriptors) + sizeof (USB_CONFIG_DESCRIPTOR);
-  mInterfaceDescriptor = (USB_INTERFACE_DESCRIPTOR *) Ptr;
-  Ptr += sizeof (USB_INTERFACE_DESCRIPTOR);
-
-  mEndpointDescriptors = (USB_ENDPOINT_DESCRIPTOR *) Ptr;
-
-  mDataReceivedCallback = RxCallback;
-  mDataSentCallback = TxCallback;
-
-  // Register a timer event so CheckInterupts gets called periodically
-  Status = gBS->CreateEvent (
-                  EVT_TIMER | EVT_NOTIFY_SIGNAL,
-                  TPL_CALLBACK,
-                  CheckInterrupts,
-                  NULL,
-                  &TimerEvent
-                  );
-  ASSERT_EFI_ERROR (Status);
-  if (EFI_ERROR (Status)) {
-    return Status;
-  }
-
-  Status = gBS->SetTimer (
-                  TimerEvent,
-                  TimerPeriodic,
-                  DW_INTERRUPT_POLL_PERIOD
-                  );
-  ASSERT_EFI_ERROR (Status);
-
-  return Status;
-#else
   EFI_STATUS             Status;
   EFI_EVENT              TimerEvent;
 
-  gEventBuf = UncachedAllocateAlignedZeroPool (DWUSB3_EVENT_BUF_SIZE, 64);
+  gEventBuf = UncachedAllocateAlignedZeroPool (DWUSB3_EVENT_BUF_SIZE << 2, 64);
   if (gEventBuf == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
@@ -2172,7 +2170,6 @@ DwUsb3Start (
                   );
   ASSERT_EFI_ERROR (Status);
   return Status;
-#endif
 }
 
 EFI_STATUS

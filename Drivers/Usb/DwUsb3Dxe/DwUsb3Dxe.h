@@ -190,7 +190,7 @@
 #define EPCFG1_EP_NUM_MASK               (0xF << 26)
 #define EPCFG1_EP_NUM(x)                 (((x) & 0xF) << 26)
 /* Endpoint Direction */
-#define EPCFG1_EP_DIR                    BIT25
+#define EPCFG1_EP_DIR_IN                 BIT25
 /* Stream Not Ready */
 #define EPCFG1_XFER_NRDY                 BIT10
 /* Stream Completed */
