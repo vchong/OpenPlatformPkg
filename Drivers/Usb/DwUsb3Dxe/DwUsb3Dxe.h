@@ -281,10 +281,30 @@
 #define UF_U2_ENABLE		49
 #define UF_LTM_ENABLE		50
 
+#define  UDESC_DEVICE		    0x01
+#define  UDESC_CONFIG		    0x02
+#define  UDESC_STRING		    0x03
+#define  UDESC_INTERFACE	    0x04
+#define  UDESC_ENDPOINT		    0x05
+#define  UDESC_SS_USB_COMPANION	0x30
+#define  UDESC_DEVICE_QUALIFIER	0x06
+#define  UDESC_BOS		        0x0f
+#define  UDESC_DEVICE_CAPABILITY 0x10
+
+#define STRING_LANGUAGE         0
+#define STRING_MANUFACTURER     1
+#define STRING_PRODUCT          2
+#define STRING_SERIAL           3
+
 #define CONFIG_VALUE    1
 
 #define USB3_BULK_IN_EP                  1
 #define USB3_BULK_OUT_EP                 1
+
+#define USB_ENUM_ADB_PORT_VID             0x18D1
+#define USB_ENUM_ADB_PORT_PID             0xD00D
+#define USB_ENUM_INTERFACE_ADB_SUBCLASS   0x42
+#define USB_ENUM_INTERFACE_ADB_PROTOCOL   0x03
 
 struct usb3_pcd;
 
@@ -338,6 +358,143 @@ typedef struct usb_device_request {
 	UINT16 wIndex;
 	UINT16 wLength;
 } usb_device_request_t;
+
+#pragma pack(1)
+/** USB_DT_DEVICE: Device descriptor */
+typedef struct usb_device_descriptor {
+	UINT8  bLength;
+	UINT8  bDescriptorType;
+
+	UINT16 bcdUSB;
+#define USB_CLASS_COMM          0x02
+#define USB_CLASS_VENDOR_SPEC   0xFF
+#define USB_SC_VENDOR_SPEC      0xFF
+#define USB_PR_VENDOR_SPEC      0xFF
+	UINT8  bDeviceClass;
+	UINT8  bDeviceSubClass;
+	UINT8  bDeviceProtocol;
+	UINT8  bMaxPacketSize0;
+	UINT16 idVendor;
+	UINT16 idProduct;
+	UINT16 bcdDevice;
+	UINT8  iManufacturer;
+	UINT8  iProduct;
+	UINT8  iSerialNumber;
+	UINT8  bNumConfigurations;
+} usb_device_descriptor_t;
+
+/* USB_DT_CONFIG: Config descriptor */
+typedef struct usb_config_descriptor {
+	UINT8  bLength;
+	UINT8  bDescriptorType;
+
+	UINT16 wTotalLength;
+	UINT8  bNumInterfaces;
+#define CONFIG_VALUE    1
+	UINT8  bConfigurationValue;
+	UINT8  iConfiguration;
+#define USB_CONFIG_ATT_ONE      (1 << 7)
+	UINT8  bmAttributes;
+#define USB_CONFIG_VBUS_DRAW    (0xFA)
+	UINT8  bMaxPower;
+} usb_config_descriptor_t;
+
+/* USB_DT_DEVICE_QUALIFIER: Device Qualifier descriptor */
+typedef struct usb_qualifier_descriptor {
+	UINT8  bLength;
+	UINT8  bDescriptorType;
+
+	UINT16 bcdUSB;
+	UINT8  bDeviceClass;
+	UINT8  bDeviceSubClass;
+	UINT8  bDeviceProtocol;
+	UINT8  bMaxPacketSize0;
+	UINT8  bNumConfigurations;
+	UINT8  bRESERVED;
+} usb_qualifier_descriptor_t;
+
+/* USB_DT_INTERFACE: Interface descriptor */
+typedef struct usb_interface_descriptor {
+	UINT8  bLength;
+	UINT8  bDescriptorType;
+
+	UINT8  bInterfaceNumber;
+	UINT8  bAlternateSetting;
+	UINT8  bNumEndpoints;
+	UINT8  bInterfaceClass;
+	UINT8  bInterfaceSubClass;
+	UINT8  bInterfaceProtocol;
+	UINT8  iInterface;
+} usb_interface_descriptor_t;
+
+/* USB_DT_ENDPOINT: Endpoint descriptor */
+typedef struct usb_endpoint_descriptor {
+	UINT8  bLength;
+	UINT8  bDescriptorType;
+
+	UINT8  bEndpointAddress;
+	UINT8  bmAttributes;
+#define USB_ENDPOINT_XFER_CONTROL	0x00
+#define USB_ENDPOINT_XFER_ISOC		0x01
+#define USB_ENDPOINT_XFER_BULK		0x02
+#define USB_ENDPOINT_XFER_INT		0x03
+	UINT16 wMaxPacketSize;
+	UINT8  bInterval;
+} usb_endpoint_descriptor_t;
+
+/* USB_DT_SS_ENDPOINT_COMP: SuperSpeed Endpoint Companion descriptor */
+typedef struct usb_ss_ep_comp_descriptor {
+	UINT8  bLength;
+	UINT8  bDescriptorType;
+
+	UINT8  bMaxBurst;
+	UINT8  bmAttributes;
+	UINT16 wBytesPerInterval;
+} usb_ss_ep_comp_descriptor_t;
+
+/* WUSB BOS Descriptor (Binary device Object Store) */
+typedef struct wusb_bos_desc {
+	UINT8 bLength;
+	UINT8 bDescriptorType;
+	UINT16 wTotalLength;
+	UINT8 bNumDeviceCaps;
+} wusb_bos_desc_t;
+
+#define USB_DEVICE_CAPABILITY_20_EXTENSION	0x02
+typedef struct usb_dev_cap_20_ext_desc {
+	UINT8 bLength;
+	UINT8 bDescriptorType;
+	UINT8 bDevCapabilityType;
+#define USB_20_EXT_LPM				0x02
+	UINT32 bmAttributes;
+} usb_dev_cap_20_ext_desc_t;
+
+#define USB_DEVICE_CAPABILITY_SS_USB		0x03
+typedef struct usb_dev_cap_ss_usb {
+	UINT8 bLength;
+	UINT8 bDescriptorType;
+	UINT8 bDevCapabilityType;
+#define USB_DC_SS_USB_LTM_CAPABLE		0x02
+	UINT8 bmAttributes;
+#define USB_DC_SS_USB_SPEED_SUPPORT_LOW		0x01
+#define USB_DC_SS_USB_SPEED_SUPPORT_FULL	0x02
+#define USB_DC_SS_USB_SPEED_SUPPORT_HIGH	0x04
+#define USB_DC_SS_USB_SPEED_SUPPORT_SS		0x08
+	UINT32 wSpeedsSupported;
+	UINT8 bFunctionalitySupport;
+	UINT8 bU1DevExitLat;
+	UINT32 wU2DevExitLat;
+} usb_dev_cap_ss_usb_t;
+
+#define USB_DEVICE_CAPABILITY_CONTAINER_ID	0x04
+typedef struct usb_dev_cap_container_id {
+	UINT8 bLength;
+	UINT8 bDescriptorType;
+	UINT8 bDevCapabilityType;
+	UINT8 bReserved;
+	UINT8 containerID[16];
+} usb_dev_cap_container_id_t;
+#pragma pack()
 
 typedef union usb_setup_pkt {
 	usb_device_request_t req;
@@ -442,6 +599,13 @@ typedef struct usb3_pcd {
 	UINT16 test_mode_nr;
 	UINT16 test_mode;
 } usb3_pcd_t;
+
+struct usb_enum_port_param {
+  UINT16     idVendor;
+  UINT16     idProduct;
+  UINT8      bInterfaceSubClass;
+  UINT8      bInterfaceProtocol;
+};
 
 #if 0
 typedef struct usb3_pcd_req {

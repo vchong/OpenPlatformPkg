@@ -81,7 +81,123 @@ STATIC DW_USB_PROTOCOL          *DwUsb;
 
 STATIC usb3_pcd_t               gPcd;
 STATIC UINT32                   *gEventBuf, *gEventPtr;
+STATIC struct usb_device_descriptor   gDwUsb3DevDesc;
 
+struct usb_interface_descriptor intf = {
+  sizeof (struct usb_interface_descriptor),
+  UDESC_INTERFACE,
+  0,
+  0,
+  2,
+  USB_CLASS_VENDOR_SPEC,
+  0x42,
+  0x03,
+  0
+};
+
+const struct usb_ss_ep_comp_descriptor ep_comp = {
+  sizeof (struct usb_ss_ep_comp_descriptor),
+  UDESC_SS_USB_COMPANION,
+  0,
+  0,
+  0
+};
+
+const struct usb_endpoint_descriptor hs_bulk_in = {
+  sizeof (struct usb_endpoint_descriptor),
+  UDESC_ENDPOINT,
+  UE_DIR_IN | USB3_BULK_IN_EP,
+  USB_ENDPOINT_XFER_BULK,
+  0x200,
+  0
+};
+
+const struct usb_endpoint_descriptor
+hs_bulk_out = {
+	sizeof(struct usb_endpoint_descriptor), /* bLength */
+	UDESC_ENDPOINT, /* bDescriptorType */
+
+	UE_DIR_OUT | USB3_BULK_OUT_EP, /* bEndpointAddress */
+	USB_ENDPOINT_XFER_BULK, /* bmAttributes */
+	0x200, /* wMaxPacketSize: 512 of high-speed */
+	1, /* bInterval */
+};
+
+const struct usb_endpoint_descriptor ss_bulk_in = {
+	sizeof(struct usb_endpoint_descriptor), /* bLength */
+	UDESC_ENDPOINT, /* bDescriptorType */
+
+	UE_DIR_IN | USB3_BULK_IN_EP, /* bEndpointAddress */
+	USB_ENDPOINT_XFER_BULK, /* bmAttributes */
+	0x400, /* wMaxPacketSize: 1024 of super-speed */
+	0, /* bInterval */
+};
+
+const struct usb_endpoint_descriptor ss_bulk_out = {
+	sizeof(struct usb_endpoint_descriptor), /* bLength */
+	UDESC_ENDPOINT, /* bDescriptorType */
+
+	UE_DIR_OUT | USB3_BULK_OUT_EP, /* bEndpointAddress */
+	USB_ENDPOINT_XFER_BULK, /* bmAttributes */
+	0x400, /* wMaxPacketSize: 1024 of super-speed */
+	0, /* bInterval */
+};
+
+/** The BOS Descriptor */
+
+const struct usb_dev_cap_20_ext_desc cap1 = {
+	sizeof(struct usb_dev_cap_20_ext_desc),	/* bLength */
+	UDESC_DEVICE_CAPABILITY,		/* bDescriptorType */
+	USB_DEVICE_CAPABILITY_20_EXTENSION,	/* bDevCapabilityType */
+	0x2,				/* bmAttributes */
+};
+
+const struct usb_dev_cap_ss_usb
+cap2 = {
+	sizeof(struct usb_dev_cap_ss_usb),	/* bLength */
+	UDESC_DEVICE_CAPABILITY,		/* bDescriptorType */
+	USB_DEVICE_CAPABILITY_SS_USB,		/* bDevCapabilityType */
+	0x0,					/* bmAttributes */
+	(USB_DC_SS_USB_SPEED_SUPPORT_SS |
+	    USB_DC_SS_USB_SPEED_SUPPORT_HIGH),   /* wSpeedsSupported */
+	0x2,					/* bFunctionalitySupport */
+	/* @todo set these to correct value */
+	0xa,					/* bU1DevExitLat */
+	0x100,				/* wU2DevExitLat */
+};
+
+const struct usb_dev_cap_container_id
+cap3 = {
+	sizeof(struct usb_dev_cap_container_id),/* bLength */
+	UDESC_DEVICE_CAPABILITY,		/* bDescriptorType */
+	USB_DEVICE_CAPABILITY_CONTAINER_ID,	/* bDevCapabilityType */
+	0,					/* bReserved */
+	/* @todo Create UUID */
+	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, /* containerID */
+};
+
+const struct wusb_bos_desc
+bos = {
+	sizeof(struct wusb_bos_desc),		/* bLength */
+	UDESC_BOS,				/* bDescriptorType */
+	(sizeof(struct wusb_bos_desc)	/* wTotalLength */
+	    + sizeof(cap1) + sizeof(cap2) + sizeof(cap3)),
+	3,					/* bNumDeviceCaps */
+};
+
+STATIC struct usb_enum_port_param usb_port_activity_config = {
+  .idVendor           = USB_ENUM_ADB_PORT_VID,
+  .idProduct          = USB_ENUM_ADB_PORT_PID,
+  .bInterfaceSubClass = USB_ENUM_INTERFACE_ADB_SUBCLASS,
+  .bInterfaceProtocol = USB_ENUM_INTERFACE_ADB_PROTOCOL
+};
+
+#define USB_SERIAL_LEN 16
+UINT16 adb_string_manu[] = {'F', 'a', 's', 't', 'b',
+	'o', 'o', 't', '2', '.', '0'};
+UINT16 adb_string_prod[] = {'H', 'I', '3', '6', '5', '0'};
+UINT16 string_serial[USB_SERIAL_LEN] = {'0', '1', '2', '3', '4', '5', '6',
+	'7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
 STATIC
 UINT32
 DwUsb3GetEventBufEvent (
@@ -1492,6 +1608,176 @@ DwUsb3DoGetDescriptor (
   IN usb3_pcd_t       *pcd
   )
 {
+  usb_device_request_t  *ctrl = &pcd->ep0_setup_pkt[0].req;
+  UINT8                 dt = ctrl->wValue >> 8;
+  UINT8                 index = (UINT8)ctrl->wValue;
+  UINT16                len = ctrl->wLength;
+  UINT8                 *buf = pcd->ep0_status_buf;
+  UINT16                value = 0;
+
+  if (ctrl->bmRequestType != (UT_READ | UT_STANDARD | UT_DEVICE)) {
+    EndPoint0DoStall (pcd);
+    return;
+  }
+
+  switch (dt) {
+  case UDESC_DEVICE:
+    {
+      struct usb_device_descriptor  *dev = &gDwUsb3DevDesc;
+      dev->bLength = sizeof (struct usb_device_descriptor);
+      dev->bDescriptorType = UDESC_DEVICE;
+      dev->bDeviceClass = 0;
+      dev->bDeviceSubClass = 0;
+      dev->bDeviceProtocol = 0;
+      if (pcd->speed == USB_SPEED_SUPER) {
+        dev->bcdUSB = 0x300;
+        // 2^9 = 512
+        dev->bMaxPacketSize0 = 9;
+      } else {
+        dev->bcdUSB = 0x0200;
+        dev->bMaxPacketSize0 = 0x40;
+      }
+      dev->idVendor = usb_port_activity_config.idVendor;
+      dev->idProduct = usb_port_activity_config.idProduct;
+      dev->bcdDevice = 0x0100;
+      dev->iManufacturer = STRING_MANUFACTURER;
+      dev->iProduct = STRING_PRODUCT;
+      dev->iSerialNumber = STRING_SERIAL;
+      dev->bNumConfigurations = 1;
+      value = sizeof (struct usb_device_descriptor);
+      CopyMem ((void *)buf, (void *)dev, value);
+    }
+    break;
+  case UDESC_DEVICE_QUALIFIER:
+    {
+      struct usb_qualifier_descriptor   *qual = (struct usb_qualifier_descriptor *)buf;
+      struct usb_device_descriptor *dev = &gDwUsb3DevDesc;
+
+      qual->bLength = sizeof (*qual);
+      qual->bDescriptorType = UDESC_DEVICE_QUALIFIER;
+      qual->bcdUSB = dev->bcdUSB;
+      qual->bDeviceClass = dev->bDeviceClass;
+      qual->bDeviceSubClass = dev->bDeviceSubClass;
+      qual->bDeviceProtocol = dev->bDeviceProtocol;
+      qual->bMaxPacketSize0 = dev->bMaxPacketSize0;
+      qual->bNumConfigurations = 1;
+      qual->bRESERVED = 0;
+      value = sizeof (struct usb_qualifier_descriptor);
+    }
+    break;
+
+  case UDESC_CONFIG:
+    {
+      struct usb_config_descriptor    *config = (struct usb_config_descriptor *)buf;
+
+      config->bLength = sizeof (*config);
+      config->bDescriptorType = UDESC_CONFIG;
+      config->bNumInterfaces = 1;
+      config->bConfigurationValue = 1;
+      config->iConfiguration = 0;
+      config->bmAttributes = USB_CONFIG_ATT_ONE;
+
+      if (pcd->speed == USB_SPEED_SUPER) {
+        config->bMaxPower = 0x50;
+      } else {
+        config->bMaxPower = 0x80;
+      }
+      buf += sizeof (*config);
+
+      intf.bInterfaceSubClass = usb_port_activity_config.bInterfaceSubClass;
+      intf.bInterfaceProtocol = usb_port_activity_config.bInterfaceProtocol;
+      CopyMem ((void *)buf, (void *)&intf, sizeof (intf));
+      buf += sizeof (intf);
+
+      switch (pcd->speed) {
+      case USB_SPEED_SUPER:
+        CopyMem (buf, &ss_bulk_in, sizeof (ss_bulk_in));
+        buf += sizeof (ss_bulk_in);
+        CopyMem (buf, &ep_comp, sizeof (ep_comp));
+        buf += sizeof (ep_comp);
+        CopyMem (buf, &ss_bulk_out, sizeof (ss_bulk_out));
+        buf += sizeof (ss_bulk_out);
+        CopyMem (buf, &ep_comp, sizeof (ep_comp));
+
+        config->wTotalLength = sizeof (*config) + sizeof (intf) + sizeof (ss_bulk_in) +
+                               sizeof (ep_comp) + sizeof (ss_bulk_out) + sizeof (ep_comp);
+        break;
+
+      default: // HS/FS
+        {
+          struct usb_endpoint_descriptor  *endp = (struct usb_endpoint_descriptor *)buf;
+
+          CopyMem (buf, &hs_bulk_in, sizeof (hs_bulk_in));
+          (endp++)->wMaxPacketSize = pcd->in_ep.maxpacket;
+          buf += sizeof (hs_bulk_in);
+          CopyMem (buf, &hs_bulk_out, sizeof (hs_bulk_out));
+          endp->wMaxPacketSize = pcd->out_ep.maxpacket;
+          config->wTotalLength = sizeof (*config) + sizeof (intf) + sizeof (hs_bulk_in) +
+                                 sizeof (hs_bulk_out);
+          break;
+        }
+      }
+      value = config->wTotalLength;
+    }
+    break;
+
+  case UDESC_STRING:
+    {
+      switch (index) {
+      case STRING_LANGUAGE:
+        buf[0] = 0x4;
+        buf[1] = UDESC_STRING;
+        buf[2] = 0x9;
+        buf[3] = 0x4;
+        value = 0x4;
+        break;
+      case STRING_MANUFACTURER:
+        buf[0] = (UINT8)sizeof (adb_string_manu);
+        buf[1] = UDESC_STRING;
+        CopyMem (buf + 2, adb_string_manu, sizeof (adb_string_manu));
+        value = buf[0];
+        break;
+      case STRING_PRODUCT:
+        buf[0] = (UINT8)sizeof (adb_string_prod);
+        buf[1] = UDESC_STRING;
+        CopyMem (buf + 2, adb_string_prod, sizeof (adb_string_prod));
+        value = buf[0];
+        break;
+      case STRING_SERIAL:
+        buf[0] = (UINT8)sizeof (string_serial);
+        buf[1] = UDESC_STRING;
+        CopyMem (buf + 2, string_serial, sizeof (string_serial));
+        value = buf[0];
+        break;
+      default:
+        EndPoint0DoStall (pcd);
+        break;
+      }
+    }
+    break;
+
+  case UDESC_BOS:
+    if (pcd->speed != USB_SPEED_SUPER) {
+      EndPoint0DoStall (pcd);
+      return;
+    }
+    value = bos.wTotalLength;
+    CopyMem (buf, &bos, sizeof (bos));
+    buf += sizeof (bos);
+    CopyMem (buf, &cap1, sizeof (cap1));
+    buf += sizeof (cap1);
+    CopyMem (buf, &cap2, sizeof (cap2));
+    buf += sizeof (cap2);
+    CopyMem (buf, &cap3, sizeof (cap3));
+    break;
+  default:
+    EndPoint0DoStall (pcd);
+    return;
+  }
+  pcd->ep0_req.bufdma = (UINT64 *)pcd->ep0_status_buf;
+  pcd->ep0_req.length = value < len ? value : len;
+  pcd->ep0_req.actual = 0;
+  DwUsb3StartXfer (pcd, &pcd->ep0_req);
 }
 
 STATIC
