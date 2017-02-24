@@ -15,6 +15,8 @@
 #ifndef __HI3660_H__
 #define __HI3660_H__
 
+#define HKADC_SSI_REG_BASE                      0xE82B8000
+
 #define PCTRL_REG_BASE                          0xE8A09000
 
 #define PCTRL_CTRL3                             (PCTRL_REG_BASE + 0x010)
@@ -50,9 +52,17 @@
 
 #define CRG_REG_BASE                            0xFFF35000
 
+#define CRG_PEREN2                              (CRG_REG_BASE + 0x020)
+#define CRG_PERDIS2                             (CRG_REG_BASE + 0x024)
+#define CRG_PERCLKEN2                           (CRG_REG_BASE + 0x028)
+#define CRG_PERSTAT2                            (CRG_REG_BASE + 0x02C)
 #define CRG_PEREN4                              (CRG_REG_BASE + 0x040)
 #define CRG_PERDIS4                             (CRG_REG_BASE + 0x044)
 #define CRG_PERCLKEN4                           (CRG_REG_BASE + 0x048)
+#define CRG_PERSTAT4                            (CRG_REG_BASE + 0x04C)
+#define CRG_PERRSTEN2                           (CRG_REG_BASE + 0x078)
+#define CRG_PERRSTDIS2                          (CRG_REG_BASE + 0x07C)
+#define CRG_PERRSTSTAT2                         (CRG_REG_BASE + 0x080)
 #define CRG_PERRSTEN3                           (CRG_REG_BASE + 0x084)
 #define CRG_PERRSTDIS3                          (CRG_REG_BASE + 0x088)
 #define CRG_PERRSTSTAT3                         (CRG_REG_BASE + 0x08C)
@@ -66,8 +76,12 @@
 #define PERI_UFS_BIT                            (1 << 12)
 #define PERI_ARST_UFS_BIT                       (1 << 7)
 
+#define PEREN2_HKADCSSI                         BIT24
+
 #define PEREN4_GT_ACLK_USB3OTG                  (1 << 1)
 #define PEREN4_GT_CLK_USB3OTG_REF               (1 << 0)
+
+#define PERRSTEN2_HKADCSSI                      BIT24
 
 #define PERRSTEN4_USB3OTG_MUX                   (1 << 8)
 #define PERRSTEN4_USB3OTG_AHBIF                 (1 << 7)
