@@ -589,6 +589,7 @@ DwUsb3Init (
     ~DCFG_DEVSPD_MASK,
     DCFG_DEVSPD (DEVSPD_SS_PHY_125MHZ_OR_250MHZ)
     );
+
   /* set nump */
   MmioAndThenOr32 (DCFG, ~DCFG_NUMP_MASK, DCFG_NUMP (16));
 
@@ -609,7 +610,7 @@ DwUsb3Init (
   DwUsb3Ep0OutStart (pcd);
 
   /* enable EP0 OUT/IN in DALEPENA */
-  MmioWrite32 (DALEPENA, EP_IN_IDX (0) | EP_OUT_IDX (0));
+  MmioWrite32 (DALEPENA, (1 << EP_OUT_IDX (0)) | (1 << EP_IN_IDX (0)));
 
   /* set RUN/STOP bit */
   MmioOr32 (DCTL, DCTL_RUN_STOP);
@@ -747,7 +748,7 @@ DwUsb3GetDeviceSpeed (
   UINT32                Data, Speed;
 
   Data = MmioRead32 (DSTS);
-  switch (Data & DCFG_DEVSPD_MASK) {
+  switch (DSTS_GET_DEVSPD (Data)) {
   case DEVSPD_HS_PHY_30MHZ_OR_60MHZ:
     Speed = USB_SPEED_HIGH;
     break;
@@ -902,7 +903,9 @@ EndPoint0DoStall (
   usb3_pcd_ep_t       *ep0 = &pcd->ep0;
 
   // stall EP0 IN & OUT simultanelusly
+  ep0->is_in = 1;
   DwUsb3DepSetStall (EP_IN_IDX (0));
+  ep0->is_in = 0;
   DwUsb3DepSetStall (EP_OUT_IDX (0));
   // prepare for the next setup transfer
   ep0->stopped = 1;

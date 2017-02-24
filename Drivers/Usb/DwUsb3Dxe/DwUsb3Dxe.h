@@ -129,6 +129,7 @@
 #define DEVTEN_DISCONNEN                 BIT0
 
 #define DSTS                             (DW_USB3_BASE + 0xC70C)
+#define DSTS_GET_DEVSPD(x)               ((x) & 0x7)
 
 #define DALEPENA                         (DW_USB3_BASE + 0xC720)
 
@@ -152,8 +153,8 @@
 #define DEPCMD_CMDTYPE(x)                ((x) & 0xFF)
 
 /* EP registers range as: OUT0, IN0, OUT1, IN1, ... */
-#define EP_OUT_IDX(x)                    ((x) << 1)
-#define EP_IN_IDX(x)                     (((x) << 1) | 1)
+#define EP_OUT_IDX(x)                    ((x) * 2)
+#define EP_IN_IDX(x)                     (((x) * 2) + 1)
 
 #define CMDTYPE_SET_EP_CFG               1
 #define CMDTYPE_SET_XFER_CFG             2
