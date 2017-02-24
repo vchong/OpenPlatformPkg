@@ -539,8 +539,10 @@ typedef struct usb3_pcd_ep {
 	/* ep_desc (excluding ep0) */
 	usb3_dma_desc_t *ep_desc;
 
+#if 0
 	/* TRB descriptor must be aligned to 16 bytes */
 	UINT8 epx_desc[32];
+#endif
 
 	/* request (excluding ep0) */
 	usb3_pcd_req_t req;
@@ -576,6 +578,7 @@ typedef struct usb3_pcd {
 	usb3_dma_desc_t *ep0_out_desc;
 
 	/* TRB descriptor must be aligned to 16 bytes */
+#if 0
 	UINT8 ep0_setup[32];
 	UINT8 ep0_in[32];
 	UINT8 ep0_out[32];
@@ -587,6 +590,7 @@ typedef struct usb3_pcd {
 
 #define USB3_BULK_BUF_SIZE      2048
 	UINT8 ss_bulk_buf[USB3_BULK_BUF_SIZE];
+#endif
 
 	UINT32 file_type;
 	UINT32 file_address;

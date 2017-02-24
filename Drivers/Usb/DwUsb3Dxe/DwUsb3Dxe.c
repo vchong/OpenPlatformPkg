@@ -83,6 +83,13 @@ STATIC usb3_pcd_t               gPcd;
 STATIC UINT32                   *gEventBuf, *gEventPtr;
 STATIC struct usb_device_descriptor   gDwUsb3DevDesc;
 
+STATIC usb_setup_pkt_t                *gEndPoint0SetupPacket;
+#define USB3_STATUS_BUF_SIZE    512
+STATIC UINT8                          *gEndPoint0StatusBuf;
+/*
+	UINT8 ep0_status_buf[USB3_STATUS_BUF_SIZE];
+*/
+
 struct usb_interface_descriptor intf = {
   sizeof (struct usb_interface_descriptor),
   UDESC_INTERFACE,
@@ -519,7 +526,7 @@ DwUsb3Ep0OutStart (
   /* DMA Descriptor setup */
   DwUsb3FillDesc (
     desc,
-    (UINT64)pcd->ep0_setup_pkt,
+    (UINT64)gEndPoint0SetupPacket,
     pcd->ep0.maxpacket,
     0,
     TRBCTL_SETUP,
@@ -601,7 +608,13 @@ DwUsb3Init (
   MmioAnd32 (GUSB2PHYCFG (0), ~GUSB2PHYCFG_SUSPHY);
 
   /* clear any pending interrupts */
+#if 0
   CLEAR_EVENTBUF ();
+#else
+  Data = MmioRead32 (GEVNTCOUNT (0));
+  DEBUG ((DEBUG_ERROR, "#%a, %d, pending int count:%d, siz:0x%x\n", __func__, __LINE__, Data, MmioRead32 (GEVNTSIZ (0))));
+  MmioOr32 (GEVNTCOUNT (0), Data);
+#endif
   /* enable device interrupts */
   MmioWrite32 (DEVTEN, DEVTEN_CONNECTDONEEN | DEVTEN_USBRSTEN);
   /* activate EP0 */
@@ -684,11 +697,19 @@ DriverInit (
   pcd->ep0.maxpacket = USB3_MAX_EP0_SIZE;
   pcd->ep0.type = EPTYPE_CONTROL;
 
+#if 0
   pcd->ep0_setup_desc = (usb3_dma_desc_t *)ALIGN ((UINTN)pcd->ep0_setup, 16);
   pcd->ep0_in_desc = (usb3_dma_desc_t *)ALIGN ((UINTN)pcd->ep0_in, 16);
   pcd->ep0_out_desc = (usb3_dma_desc_t *)ALIGN ((UINTN)pcd->ep0_out, 16);
   pcd->in_ep.ep_desc = (usb3_dma_desc_t *)ALIGN ((UINTN)pcd->in_ep.epx_desc, 16);
   pcd->out_ep.ep_desc = (usb3_dma_desc_t *)ALIGN ((UINTN)pcd->out_ep.epx_desc, 16);
+#else
+  pcd->ep0_setup_desc = (usb3_dma_desc_t *)UncachedAllocateAlignedZeroPool (32, 16);
+  pcd->ep0_in_desc = (usb3_dma_desc_t *)UncachedAllocateAlignedZeroPool (32, 16);
+  pcd->ep0_out_desc = (usb3_dma_desc_t *)UncachedAllocateAlignedZeroPool (32, 16);
+  pcd->in_ep.ep_desc = (usb3_dma_desc_t *)UncachedAllocateAlignedZeroPool (32, 16);
+  pcd->out_ep.ep_desc = (usb3_dma_desc_t *)UncachedAllocateAlignedZeroPool (32, 16);
+#endif
 }
 
 STATIC
@@ -1272,9 +1293,9 @@ DwUsb3HandleEndPoint0 (
   case EP0_IN_WAIT_NRDY:
   case EP0_OUT_WAIT_NRDY:
     if (ep0->is_in) {
-      SetupInStatusPhase (pcd, pcd->ep0_setup_pkt);
+      SetupInStatusPhase (pcd, gEndPoint0SetupPacket);
     } else {
-      SetupOutStatusPhase (pcd, pcd->ep0_setup_pkt);
+      SetupOutStatusPhase (pcd, gEndPoint0SetupPacket);
     }
     break;
   case EP0_IN_STATUS_PHASE:
@@ -1330,8 +1351,8 @@ DwUsb3DoGetStatus (
   IN usb3_pcd_t       *pcd
   )
 {
-  usb_device_request_t   *ctrl = &pcd->ep0_setup_pkt[0].req;
-  UINT8                  *status = pcd->ep0_status_buf;
+  usb_device_request_t   *ctrl = &gEndPoint0SetupPacket->req;
+  UINT8                  *status = gEndPoint0StatusBuf;
   usb3_pcd_ep_t          *ep;
 
   if (ctrl->wLength != 2) {
@@ -1416,7 +1437,7 @@ DwUsb3DoClearFeature (
   IN usb3_pcd_t       *pcd
   )
 {
-  usb_device_request_t  *ctrl = &pcd->ep0_setup_pkt[0].req;
+  usb_device_request_t  *ctrl = &gEndPoint0SetupPacket->req;
   usb3_pcd_ep_t  *ep;
 
   switch (UT_GET_RECIPIENT (ctrl->bmRequestType)) {
@@ -1481,7 +1502,7 @@ DwUsb3DoSetFeature (
   IN usb3_pcd_t       *pcd
   )
 {
-  usb_device_request_t  *ctrl = &pcd->ep0_setup_pkt[0].req;
+  usb_device_request_t  *ctrl = &gEndPoint0SetupPacket->req;
   usb3_pcd_ep_t  *ep;
 
   switch (UT_GET_RECIPIENT (ctrl->bmRequestType)) {
@@ -1557,7 +1578,7 @@ DwUsb3DoSetAddress (
   IN usb3_pcd_t          *pcd
   )
 {
-  usb_device_request_t *ctrl = &pcd->ep0_setup_pkt[0].req;
+  usb_device_request_t *ctrl = &gEndPoint0SetupPacket->req;
 
   if (ctrl->bmRequestType == UT_DEVICE) {
     SET_DEVADDR (ctrl->wValue);
@@ -1588,7 +1609,7 @@ DwUsb3SetConfig (
   IN usb3_pcd_t           *pcd
   )
 {
-  usb_device_request_t   *ctrl = &pcd->ep0_setup_pkt[0].req;
+  usb_device_request_t   *ctrl = &gEndPoint0SetupPacket->req;
   UINT16         wvalue = ctrl->wValue;
   usb3_pcd_ep_t     *ep;
 
@@ -1636,8 +1657,8 @@ DwUsb3DoGetConfig (
   IN usb3_pcd_t       *pcd
   )
 {
-  usb_device_request_t  *ctrl = &pcd->ep0_setup_pkt[0].req;
-  UINT8  *status = pcd->ep0_status_buf;
+  usb_device_request_t  *ctrl = &gEndPoint0SetupPacket->req;
+  UINT8  *status = gEndPoint0StatusBuf;
 
   if (ctrl->bmRequestType != (UT_READ | UT_STANDARD | UT_DEVICE)) {
     EndPoint0DoStall (pcd);
@@ -1657,7 +1678,7 @@ DwUsb3DoSetConfig (
   IN usb3_pcd_t       *pcd
   )
 {
-  usb_device_request_t  *ctrl = &pcd->ep0_setup_pkt[0].req;
+  usb_device_request_t  *ctrl = &gEndPoint0SetupPacket->req;
   UINT16  wvalue = ctrl->wValue;
   usb3_pcd_ep_t  *ep;
 
@@ -1701,11 +1722,11 @@ DwUsb3DoGetDescriptor (
   IN usb3_pcd_t       *pcd
   )
 {
-  usb_device_request_t  *ctrl = &pcd->ep0_setup_pkt[0].req;
+  usb_device_request_t  *ctrl = &gEndPoint0SetupPacket->req;
   UINT8                 dt = ctrl->wValue >> 8;
   UINT8                 index = (UINT8)ctrl->wValue;
   UINT16                len = ctrl->wLength;
-  UINT8                 *buf = pcd->ep0_status_buf;
+  UINT8                 *buf = gEndPoint0StatusBuf;
   UINT16                value = 0;
 
   if (ctrl->bmRequestType != (UT_READ | UT_STANDARD | UT_DEVICE)) {
@@ -1867,7 +1888,7 @@ DwUsb3DoGetDescriptor (
     EndPoint0DoStall (pcd);
     return;
   }
-  pcd->ep0_req.bufdma = (UINT64 *)pcd->ep0_status_buf;
+  pcd->ep0_req.bufdma = (UINT64 *)gEndPoint0StatusBuf;
   pcd->ep0_req.length = value < len ? value : len;
   pcd->ep0_req.actual = 0;
   DwUsb3EndPoint0StartTransfer (pcd, &pcd->ep0_req);
@@ -1879,7 +1900,7 @@ DwUsb3DoSetup (
   IN usb3_pcd_t       *pcd
   )
 {
-  usb_device_request_t  *ctrl = &pcd->ep0_setup_pkt[0].req;
+  usb_device_request_t  *ctrl = &gEndPoint0SetupPacket->req;
   usb3_pcd_ep_t         *ep0 = &pcd->ep0;
   UINT16                wLength;
 
@@ -1933,7 +1954,7 @@ DwUsb3DoSetup (
     break;
   case UR_SET_SEL:
     // for now this is a no-op
-    pcd->ep0_req.bufdma = (UINT64 *)pcd->ep0_status_buf;
+    pcd->ep0_req.bufdma = (UINT64 *)gEndPoint0StatusBuf;
     pcd->ep0_req.length = USB3_STATUS_BUF_SIZE;
     pcd->ep0_req.actual = 0;
     ep0->send_zlp = 0;
@@ -2147,10 +2168,12 @@ DwUsb3Start (
   EFI_STATUS             Status;
   EFI_EVENT              TimerEvent;
 
-  gEventBuf = UncachedAllocateAlignedZeroPool (DWUSB3_EVENT_BUF_SIZE << 2, 64);
+  //gEventBuf = UncachedAllocateAlignedZeroPool (DWUSB3_EVENT_BUF_SIZE << 2, 256);
+  gEventBuf = UncachedAllocatePages (EFI_SIZE_TO_PAGES (DWUSB3_EVENT_BUF_SIZE << 2));
   if (gEventBuf == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
+  ZeroMem (gEventBuf, EFI_SIZE_TO_PAGES (DWUSB3_EVENT_BUF_SIZE << 2));
   gEventPtr = gEventBuf;
   DriverInit ();
   DwUsb3Init ();
@@ -2204,6 +2227,14 @@ DwUsb3EntryPoint (
 {
   EFI_STATUS      Status;
 
+  gEndPoint0SetupPacket = UncachedAllocatePages (EFI_SIZE_TO_PAGES (sizeof (usb_setup_pkt_t) * 5));
+  if (gEndPoint0SetupPacket == NULL) {
+    return EFI_OUT_OF_RESOURCES;
+  }
+  gEndPoint0StatusBuf = UncachedAllocatePages (EFI_SIZE_TO_PAGES (sizeof (USB3_STATUS_BUF_SIZE)));
+  if (gEndPoint0StatusBuf == NULL) {
+    return EFI_OUT_OF_RESOURCES;
+  }
   Status = gBS->LocateProtocol (&gDwUsbProtocolGuid, NULL, (VOID **) &DwUsb);
   if (EFI_ERROR (Status)) {
     return Status;
