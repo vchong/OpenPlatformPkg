@@ -345,9 +345,9 @@
   gDwUfsHcDxeTokenSpaceGuid.PcdDwUfsHcDxeBaseAddress|0xFF3B0000
 
   #
-  # DW USB controller
+  # DW USB3 controller
   #
-  gDwUsbDxeTokenSpaceGuid.PcdDwUsbDxeBaseAddress|0xFF100000
+  gDwUsb3DxeTokenSpaceGuid.PcdDwUsb3DxeBaseAddress|0xFF100000
 
   #
   #
@@ -459,10 +459,10 @@
   #
   # USB Peripheral Support
   #
-  EmbeddedPkg/Drivers/AndroidFastbootTransportUsbDxe/FastbootTransportUsbDxe.inf
-  OpenPlatformPkg/Drivers/Usb/DwUsbDxe/DwUsbDxe.inf
-  OpenPlatformPkg/Platforms/Hisilicon/HiKey960/HiKey960FastbootDxe/HiKey960FastbootDxe.inf
   OpenPlatformPkg/Platforms/Hisilicon/HiKey960/HiKey960UsbDxe/HiKey960UsbDxe.inf
+  OpenPlatformPkg/Drivers/Usb/DwUsb3Dxe/DwUsb3Dxe.inf
+  OpenPlatformPkg/Platforms/Hisilicon/HiKey960/HiKey960FastbootDxe/HiKey960FastbootDxe.inf
+  EmbeddedPkg/Drivers/AndroidFastbootTransportUsbDxe/FastbootTransportUsbDxe.inf
 
   #
   # Fastboot
