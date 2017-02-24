@@ -17,22 +17,22 @@
 
 #define PCTRL_REG_BASE                          0xE8A09000
 
-#define PCTRL_CTRL3_OFFSET                      0x010
-#define PCTRL_CTRL24_OFFSET                     0x064
+#define PCTRL_CTRL3                             (PCTRL_REG_BASE + 0x010)
+#define PCTRL_CTRL24                            (PCTRL_REG_BASE + 0x064)
 
 #define PCTRL_CTRL3_USB_TXCO_EN                 (1 << 1)
 #define PCTRL_CTRL24_USB3PHY_3MUX1_SEL          (1 << 25)
 
 #define USB3OTG_BC_REG_BASE                     0xFF200000
 
-#define USB3OTG_CTRL0_OFFSET                    0x000
-#define USB3OTG_CTRL2_OFFSET                    0x008
-#define USB3OTG_CTRL3_OFFSET                    0x00C
-#define USB3OTG_CTRL4_OFFSET                    0x010
-#define USB3OTG_CTRL6_OFFSET                    0x018
-#define USB3OTG_CTRL7_OFFSET                    0x01C
-#define USB3OTG_PHY_CR_STS_OFFSET               0x050
-#define USB3OTG_PHY_CR_CTRL_OFFSET              0x054
+#define USB3OTG_CTRL0                           (USB3OTG_BC_REG_BASE + 0x000)
+#define USB3OTG_CTRL2                           (USB3OTG_BC_REG_BASE + 0x008)
+#define USB3OTG_CTRL3                           (USB3OTG_BC_REG_BASE + 0x00C)
+#define USB3OTG_CTRL4                           (USB3OTG_BC_REG_BASE + 0x010)
+#define USB3OTG_CTRL6                           (USB3OTG_BC_REG_BASE + 0x018)
+#define USB3OTG_CTRL7                           (USB3OTG_BC_REG_BASE + 0x01C)
+#define USB3OTG_PHY_CR_STS                      (USB3OTG_BC_REG_BASE + 0x050)
+#define USB3OTG_PHY_CR_CTRL                     (USB3OTG_BC_REG_BASE + 0x054)
 
 #define USB3OTG_CTRL0_SC_USB3PHY_ABB_GT_EN      (1 << 15)
 #define USB3OTG_CTRL2_TEST_POWERDOWN_SSP        (1 << 1)
@@ -50,18 +50,18 @@
 
 #define CRG_REG_BASE                            0xFFF35000
 
-#define CRG_PEREN4_OFFSET                       0x040
-#define CRG_PERDIS4_OFFSET                      0x044
-#define CRG_PERCLKEN4_OFFSET                    0x048
-#define CRG_PERRSTEN3_OFFSET                    0x084
-#define CRG_PERRSTDIS3_OFFSET                   0x088
-#define CRG_PERRSTSTAT3_OFFSET                  0x08C
-#define CRG_PERRSTEN4_OFFSET                    0x090
-#define CRG_PERRSTDIS4_OFFSET                   0x094
-#define CRG_PERRSTSTAT4_OFFSET                  0x098
-#define CRG_ISOEN_OFFSET                        0x144
-#define CRG_ISODIS_OFFSET                       0x148
-#define CRG_ISOSTAT_OFFSET                      0x14C
+#define CRG_PEREN4                              (CRG_REG_BASE + 0x040)
+#define CRG_PERDIS4                             (CRG_REG_BASE + 0x044)
+#define CRG_PERCLKEN4                           (CRG_REG_BASE + 0x048)
+#define CRG_PERRSTEN3                           (CRG_REG_BASE + 0x084)
+#define CRG_PERRSTDIS3                          (CRG_REG_BASE + 0x088)
+#define CRG_PERRSTSTAT3                         (CRG_REG_BASE + 0x08C)
+#define CRG_PERRSTEN4                           (CRG_REG_BASE + 0x090)
+#define CRG_PERRSTDIS4                          (CRG_REG_BASE + 0x094)
+#define CRG_PERRSTSTAT4                         (CRG_REG_BASE + 0x098)
+#define CRG_ISOEN                               (CRG_REG_BASE + 0x144)
+#define CRG_ISODIS                              (CRG_REG_BASE + 0x148)
+#define CRG_ISOSTAT                             (CRG_REG_BASE + 0x14C)
 
 #define PERI_UFS_BIT                            (1 << 12)
 #define PERI_ARST_UFS_BIT                       (1 << 7)
