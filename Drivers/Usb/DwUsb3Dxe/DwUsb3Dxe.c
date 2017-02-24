@@ -2181,7 +2181,7 @@ DwUsb3HandleEvent (
   }
 
   for (Index = 0; Index < Count; Index += sizeof (UINT32)) {
-    Event = DwUsb3GetEventBufEvent (DWUSB3_EVENT_BUF_SIZE);
+    Event = DwUsb3GetEventBufEvent (DWUSB3_EVENT_BUF_SIZE << 2);
     UPDATE_EVENTBUF_COUNT (sizeof (UINT32));
     if (Event == 0) {
       // ignore null events
