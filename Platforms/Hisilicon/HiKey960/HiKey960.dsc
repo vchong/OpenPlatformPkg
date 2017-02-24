@@ -408,6 +408,8 @@
 
   MdeModulePkg/Universal/WatchdogTimerDxe/WatchdogTimer.inf
 
+  OpenPlatformPkg/Platforms/Hisilicon/HiKey960/HiKey960Dxe/HiKey960Dxe.inf
+
   #
   # GPIO
   #

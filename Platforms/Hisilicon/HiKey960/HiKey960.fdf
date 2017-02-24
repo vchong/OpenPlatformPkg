@@ -112,6 +112,8 @@ READ_LOCK_STATUS   = TRUE
 
   INF MdeModulePkg/Universal/WatchdogTimerDxe/WatchdogTimer.inf
 
+  INF OpenPlatformPkg/Platforms/Hisilicon/HiKey960/HiKey960Dxe/HiKey960Dxe.inf
+
   #
   # GPIO
   #
