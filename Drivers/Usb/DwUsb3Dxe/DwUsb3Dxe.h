@@ -194,6 +194,8 @@
 #define EPCFG1_EP_DIR_IN                 BIT25
 /* Stream Not Ready */
 #define EPCFG1_XFER_NRDY                 BIT10
+/* XferInProgress Enable */
+#define EPCFG1_XFER_IN_PROG              BIT9
 /* Stream Completed */
 #define EPCFG1_XFER_CMPL                 BIT8
 
@@ -232,6 +234,7 @@
 #define TRBCTL_ISOC_1ST                  6
 #define TRBCTL_ISOC                      7
 #define TRBCTL_LINK                      8
+#define TRBCTL_NORMAL_ZLP                9
 
 
 #define UE_DIR_IN                        0x80

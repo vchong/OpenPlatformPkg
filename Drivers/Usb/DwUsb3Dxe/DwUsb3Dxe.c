@@ -279,6 +279,7 @@ DwUsb3FillDesc (
     desc->control = DSCCTL_TRBCTL (type);
   }
   desc->control |= DSCCTL_STRMID_SOFN (stream) | ctrlbits;
+  ArmDataSynchronizationBarrier ();
   /* must execute this operation at last */
   if (own) {
     desc->control |= DSCCTL_HWO;
@@ -627,6 +628,7 @@ DwUsb3Init (
 
   /* set RUN/STOP bit */
   MmioOr32 (DCTL, DCTL_RUN_STOP);
+DEBUG ((DEBUG_ERROR, "#%a, %d, DCTL:0x%x\n", __func__, __LINE__, MmioRead32 (DCTL)));
 }
 
 #define ALIGN(x, a)     (((x) + ((a) - 1)) & ~((a) - 1))
@@ -704,12 +706,16 @@ DriverInit (
   pcd->in_ep.ep_desc = (usb3_dma_desc_t *)ALIGN ((UINTN)pcd->in_ep.epx_desc, 16);
   pcd->out_ep.ep_desc = (usb3_dma_desc_t *)ALIGN ((UINTN)pcd->out_ep.epx_desc, 16);
 #else
-  pcd->ep0_setup_desc = (usb3_dma_desc_t *)UncachedAllocateAlignedZeroPool (32, 16);
-  pcd->ep0_in_desc = (usb3_dma_desc_t *)UncachedAllocateAlignedZeroPool (32, 16);
-  pcd->ep0_out_desc = (usb3_dma_desc_t *)UncachedAllocateAlignedZeroPool (32, 16);
-  pcd->in_ep.ep_desc = (usb3_dma_desc_t *)UncachedAllocateAlignedZeroPool (32, 16);
-  pcd->out_ep.ep_desc = (usb3_dma_desc_t *)UncachedAllocateAlignedZeroPool (32, 16);
+  pcd->ep0_setup_desc = (usb3_dma_desc_t *)UncachedAllocateAlignedZeroPool (64, 64);
+  pcd->ep0_in_desc = (usb3_dma_desc_t *)UncachedAllocateAlignedZeroPool (64, 64);
+  pcd->ep0_out_desc = (usb3_dma_desc_t *)UncachedAllocateAlignedZeroPool (64, 64);
+  pcd->in_ep.ep_desc = (usb3_dma_desc_t *)UncachedAllocateAlignedZeroPool (64, 64);
+  pcd->out_ep.ep_desc = (usb3_dma_desc_t *)UncachedAllocateAlignedZeroPool (64, 64);
 #endif
+DEBUG ((DEBUG_ERROR, "#%a, %d, ep0 setup:0x%x, ep0 in:0x%x, ep0 out:0x%x, epx in:0x%x, epx out:0x%x\n",
+	__func__, __LINE__, pcd->ep0_setup_desc, pcd->ep0_in_desc, pcd->ep0_out_desc, pcd->in_ep.ep_desc, pcd->out_ep.ep_desc));
+DEBUG ((DEBUG_ERROR, "#%a, %d, gEndPoint0SetupPacket:0x%x, gEndPoint0StatusBuf:0x%x\n", __func__, __LINE__,
+	(UINT64)gEndPoint0SetupPacket, (UINT64)gEndPoint0StatusBuf));
 }
 
 STATIC
@@ -876,11 +882,11 @@ DwUsb3HandleDeviceInterrupt (
 {
   switch (Event & GEVNT_DEVT_MASK) {
   case GEVNT_DEVT_USBRESET:
-DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
+DEBUG ((DEBUG_ERROR, "#%a, %d RST\n", __func__, __LINE__));
     DwUsb3HandleUsbResetInterrupt (pcd);
     break;
   case GEVNT_DEVT_CONNDONE:
-DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
+DEBUG ((DEBUG_ERROR, "#%a, %d CONNDONE\n", __func__, __LINE__));
     DwUsb3HandleConnectDoneInterrupt (pcd);
     break;
   default:
@@ -1034,19 +1040,25 @@ DwUsb3EndPoint0StartTransfer (
   desc = req->trb;
   desc_dma = req->trbdma;
 
+DEBUG ((DEBUG_ERROR, "#%a, %d, dma:0x%x, dir:%a, state:%d, three_stage:%d\n",
+			__func__, __LINE__, desc_dma, ep0->is_in ? "IN" : "OUT", pcd->ep0state, ep0->three_stage));
   if (ep0->is_in) {
     // start DMA on EP0 IN
     // DMA Descriptor (TRB) setup
     len = req->length;
     if (pcd->ep0state == EP0_IN_STATUS_PHASE) {
       if (ep0->three_stage) {
-        desc_type = DSCCTL_TRBCTL (TRBCTL_STATUS_3);
+        desc_type = TRBCTL_STATUS_3;
+        //desc_type = DSCCTL_TRBCTL (TRBCTL_STATUS_3);
       } else {
-        desc_type = DSCCTL_TRBCTL (TRBCTL_STATUS_2);
+        desc_type = TRBCTL_STATUS_2;
+        //desc_type = DSCCTL_TRBCTL (TRBCTL_STATUS_2);
       }
     } else {
-      desc_type = DSCCTL_TRBCTL (TRBCTL_CTLDATA_1ST);
+      desc_type = TRBCTL_CTLDATA_1ST;
+      //desc_type = DSCCTL_TRBCTL (TRBCTL_CTLDATA_1ST);
     }
+DEBUG ((DEBUG_ERROR, "#%a, %d, IN TRB %x\n", __func__, __LINE__, desc_type));
     DwUsb3FillDesc (
       desc,
       (UINT64)req->bufdma,
@@ -1056,21 +1068,35 @@ DwUsb3EndPoint0StartTransfer (
       DSCCTL_IOC | DSCCTL_ISP | DSCCTL_LST,
       1
       );
+DEBUG ((DEBUG_ERROR, "#%a, %d, IN %x-%x-%x-%x\n", __func__, __LINE__, desc->bptl, desc->bpth, desc->status, desc->control));
     // issue DEPSTRTXFER command to EP0 IN
     ep0->tri_in = DwUsb3DepStartXfer (EP_IN_IDX (0), desc_dma, 0);
+    {
+       UINTN Index;
+       for (Index = 0; Index < 10; Index++) {
+DEBUG ((DEBUG_ERROR, "#%a, %d, OUT %x-%x-%x-%x\n", __func__, __LINE__, desc->bptl, desc->bpth, desc->status, desc->control));
+         MicroSecondDelay (20);
+       }
+    }
   } else {
     // start DMA on EP0 OUT
     // DMA Descriptor (TRB) setup
-    len = (req->length + ep0->maxpacket - 1) & ~(ep0->maxpacket - 1);
+    len = ALIGN (req->length, ep0->maxpacket);
+//DEBUG ((DEBUG_ERROR, "#%a, %d, len:%d\n", __func__, __LINE__, len));
+    //len = (req->length + ep0->maxpacket - 1) & ~(ep0->maxpacket - 1);
     if (pcd->ep0state == EP0_OUT_STATUS_PHASE) {
       if (ep0->three_stage) {
-        desc_type = DSCCTL_TRBCTL (TRBCTL_STATUS_3);
+        desc_type = TRBCTL_STATUS_3;
+        //desc_type = DSCCTL_TRBCTL (TRBCTL_STATUS_3);
       } else {
-        desc_type = DSCCTL_TRBCTL (TRBCTL_STATUS_2);
+        desc_type = TRBCTL_STATUS_2;
+        //desc_type = DSCCTL_TRBCTL (TRBCTL_STATUS_2);
       }
     } else {
-      desc_type = DSCCTL_TRBCTL (TRBCTL_CTLDATA_1ST);
+      desc_type = TRBCTL_CTLDATA_1ST;
+      //desc_type = DSCCTL_TRBCTL (TRBCTL_CTLDATA_1ST);
     }
+DEBUG ((DEBUG_ERROR, "#%a, %d, OUT TRB %x\n", __func__, __LINE__, desc_type));
     DwUsb3FillDesc (
       desc,
       (UINT64)req->bufdma,
@@ -1080,8 +1106,16 @@ DwUsb3EndPoint0StartTransfer (
       DSCCTL_IOC | DSCCTL_ISP | DSCCTL_LST,
       1
       );
+DEBUG ((DEBUG_ERROR, "#%a, %d, OUT %x-%x-%x-%x\n", __func__, __LINE__, desc->bptl, desc->bpth, desc->status, desc->control));
     // issue DEPSTRTXFER command to EP0 OUT
     ep0->tri_out = DwUsb3DepStartXfer (EP_OUT_IDX (0), desc_dma, 0);
+    {
+       UINTN Index;
+       for (Index = 0; Index < 10; Index++) {
+DEBUG ((DEBUG_ERROR, "#%a, %d, OUT %x-%x-%x-%x\n", __func__, __LINE__, desc->bptl, desc->bpth, desc->status, desc->control));
+         MicroSecondDelay (20);
+       }
+    }
   }
 }
 
@@ -1193,6 +1227,7 @@ SetupInStatusPhase (
   pcd->ep0_req.bufdma = buf;
   pcd->ep0_req.length = 0;
   pcd->ep0_req.actual = 0;
+DEBUG ((DEBUG_ERROR, "#%a, %d, bufdma:0x%x, length:0x%x\n", __func__, __LINE__, pcd->ep0_req.bufdma, pcd->ep0_req.length));
   DwUsb3EndPoint0StartTransfer (pcd, &pcd->ep0_req);
 }
 
@@ -1208,11 +1243,13 @@ SetupOutStatusPhase (
   if (pcd->ep0state == EP0_STALL)
     return;
 
+//DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
   ep0->is_in = 0;
   pcd->ep0state = EP0_OUT_STATUS_PHASE;
   pcd->ep0_req.bufdma = buf;
   pcd->ep0_req.length = 0;
   pcd->ep0_req.actual = 0;
+DEBUG ((DEBUG_ERROR, "#%a, %d, bufdma:0x%x, length:0x%x\n", __func__, __LINE__, pcd->ep0_req.bufdma, pcd->ep0_req.length));
   DwUsb3EndPoint0StartTransfer (pcd, &pcd->ep0_req);
 }
 
@@ -1228,6 +1265,7 @@ DwUsb3HandleEndPoint0 (
   usb3_dma_desc_t     *desc;
   UINT32              byte_count, len;
 
+DEBUG ((DEBUG_ERROR, "#%a, %d, state:%d\n", __func__, __LINE__, pcd->ep0state));
   switch (pcd->ep0state) {
   case EP0_IN_DATA_PHASE:
     if (req == NULL) {
@@ -1290,6 +1328,7 @@ DwUsb3HandleEndPoint0 (
       EndPoint0CompleteRequest (pcd, req, desc);
     }
     break;
+#if 0
   case EP0_IN_WAIT_NRDY:
   case EP0_OUT_WAIT_NRDY:
     if (ep0->is_in) {
@@ -1305,6 +1344,7 @@ DwUsb3HandleEndPoint0 (
     } else {
       desc = pcd->ep0_out_desc;
     }
+//ASSERT (0);
     EndPoint0CompleteRequest (pcd, req, desc);
     // skip test mode
     pcd->ep0state = EP0_IDLE;
@@ -1313,6 +1353,48 @@ DwUsb3HandleEndPoint0 (
     // prepare for more SETUP packets
     DwUsb3Ep0OutStart (pcd);
     break;
+#else
+  case EP0_IN_WAIT_NRDY:
+    if (ep0->is_in) {
+      SetupInStatusPhase (pcd, gEndPoint0SetupPacket);
+    } else {
+      ASSERT (0);
+    }
+    break;
+  case EP0_OUT_WAIT_NRDY:
+    if (!ep0->is_in) {
+      SetupOutStatusPhase (pcd, gEndPoint0SetupPacket);
+    } else {
+      ASSERT (0);
+    }
+    break;
+  case EP0_IN_STATUS_PHASE:
+    if (ep0->is_in) {
+      desc = pcd->ep0_in_desc;
+    } else {
+      ASSERT (0);
+    }
+    EndPoint0CompleteRequest (pcd, req, desc);
+    pcd->ep0state = EP0_IDLE;
+    ep0->stopped = 1;
+    ep0->is_in = 0;  // OUT for next SETUP
+    // prepare for more SETUP packets
+    DwUsb3Ep0OutStart (pcd);
+    break;
+  case EP0_OUT_STATUS_PHASE:
+    if (!ep0->is_in) {
+      desc = pcd->ep0_out_desc;
+    } else {
+      ASSERT (0);
+    }
+    EndPoint0CompleteRequest (pcd, req, desc);
+    pcd->ep0state = EP0_IDLE;
+    ep0->stopped = 1;
+    ep0->is_in = 0;  // OUT for next SETUP
+    // prepare for more SETUP packets
+    DwUsb3Ep0OutStart (pcd);
+    break;
+#endif
   case EP0_STALL:
     break;
   case EP0_IDLE:
@@ -1580,13 +1662,17 @@ DwUsb3DoSetAddress (
 {
   usb_device_request_t *ctrl = &gEndPoint0SetupPacket->req;
 
+DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
   if (ctrl->bmRequestType == UT_DEVICE) {
+DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
     SET_DEVADDR (ctrl->wValue);
     pcd->ep0.is_in = 1;
     pcd->ep0state = EP0_IN_WAIT_NRDY;
     if (ctrl->wValue) {
+DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
       pcd->state = USB3_STATE_ADDRESSED;
     } else {
+DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
       pcd->state = USB3_STATE_DEFAULT;
     }
   }
@@ -1734,6 +1820,7 @@ DwUsb3DoGetDescriptor (
     return;
   }
 
+DEBUG ((DEBUG_ERROR, "#%a, %d, dt:0x%x\n", __func__, __LINE__, dt));
   switch (dt) {
   case UDESC_DEVICE:
     {
@@ -1925,6 +2012,7 @@ DwUsb3DoSetup (
     return;
   }
 
+DEBUG ((DEBUG_ERROR, "#%a, %d, bRequest:0x%x, three stage:%d\n", __func__, __LINE__, ctrl->bRequest, ep0->three_stage));
   switch (ctrl->bRequest) {
   case UR_GET_STATUS:
     DwUsb3DoGetStatus (pcd);
@@ -1949,7 +2037,6 @@ DwUsb3DoSetup (
     DwUsb3DoGetConfig (pcd);
     break;
   case UR_GET_DESCRIPTOR:
-    // FIXME
     DwUsb3DoGetDescriptor (pcd);
     break;
   case UR_SET_SEL:
@@ -2058,7 +2145,7 @@ DwUsb3HandleEndPointInterrupt (
   is_in = (UINT32)PhySep & 1;
   epnum = ((UINT32)PhySep >> 1) & 0xF;
 
-DEBUG ((DEBUG_ERROR, "#%a, %d, dir:%a, epnum:%d\n", __func__, __LINE__, is_in ? "IN" : "OUT", epnum));
+//DEBUG ((DEBUG_ERROR, "#%a, %d, dir:%a, epnum:%d\n", __func__, __LINE__, is_in ? "IN" : "OUT", epnum));
   // Get the EP pointer
   if (is_in) {
     ep = DwUsb3GetInEndPoint (pcd, epnum);
@@ -2068,7 +2155,7 @@ DEBUG ((DEBUG_ERROR, "#%a, %d, dir:%a, epnum:%d\n", __func__, __LINE__, is_in ? 
 
   switch (event & GEVNT_DEPEVT_INTTYPE_MASK) {
   case GEVNT_DEPEVT_INTTYPE_XFER_CMPL:
-DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
+DEBUG ((DEBUG_ERROR, "#%a, %d, XFER CMPL, DIR:%a\n", __func__, __LINE__, ep->is_in ? "IN" : "OUT"));
     ep->xfer_started = 0;
     // complete the transfer
     if (epnum == 0) {
@@ -2077,23 +2164,39 @@ DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
       DwUsb3EndPointcompleteRequest (pcd, ep, event);
     }
     break;
+  case GEVNT_DEPEVT_INTTYPE_XFER_IN_PROG:
+DEBUG ((DEBUG_ERROR, "#%a, %d, XFER IN PROG, DIR:%a\n", __func__, __LINE__, ep->is_in ? "IN" : "OUT"));
+    break;
   case GEVNT_DEPEVT_INTTYPE_XFER_NRDY:
-DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
     if (epnum == 0) {
+DEBUG ((DEBUG_ERROR, "#%a, %d, EP0 %a XFER NRDY\n", __func__, __LINE__, ep->is_in ? "IN" : "OUT"));
       switch (pcd->ep0state) {
+#if 1
       case EP0_IN_WAIT_NRDY:
         if (is_in) {
           DwUsb3OsHandleEndPoint0 (pcd, event);
+        } else {
+DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
         }
         break;
       case EP0_OUT_WAIT_NRDY:
         if (!is_in) {
           DwUsb3OsHandleEndPoint0 (pcd, event);
+        } else {
+DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
         }
         break;
+#else
+      case EP0_IN_WAIT_NRDY:
+      case EP0_OUT_WAIT_NRDY:
+        DwUsb3OsHandleEndPoint0 (pcd, event);
+        break;
+#endif
       default:
         break;
       }
+    } else {
+DEBUG ((DEBUG_ERROR, "#%a, %d, EPx XFER NRDY\n", __func__, __LINE__));
     }
     break;
   default:
@@ -2136,7 +2239,7 @@ DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
       }
     } else {
       PhySep = (Event & GEVNT_DEPEVT_EPNUM_MASK) >> GEVNT_DEPEVT_EPNUM_SHIFT;
-DEBUG ((DEBUG_ERROR, "#%a, %d epnum:%d, event:0x%x\n", __func__, __LINE__, PhySep, Event));
+//DEBUG ((DEBUG_ERROR, "#%a, %d epnum:%d, event:0x%x\n", __func__, __LINE__, PhySep, Event));
       DwUsb3HandleEndPointInterrupt (pcd, PhySep, Event);
     }
   }
@@ -2231,7 +2334,7 @@ DwUsb3EntryPoint (
   if (gEndPoint0SetupPacket == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
-  gEndPoint0StatusBuf = UncachedAllocatePages (EFI_SIZE_TO_PAGES (sizeof (USB3_STATUS_BUF_SIZE)));
+  gEndPoint0StatusBuf = UncachedAllocatePages (EFI_SIZE_TO_PAGES (USB3_STATUS_BUF_SIZE * sizeof (UINT8)));
   if (gEndPoint0StatusBuf == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
