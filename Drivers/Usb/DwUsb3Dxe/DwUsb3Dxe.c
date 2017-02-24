@@ -1772,6 +1772,10 @@ DwUsb3DoSetConfig (
         usb3_pcd_ep_t                 *ep = &pcd->out_ep;
         usb3_pcd_req_t                *req = &ep->req;
 
+        // AndroidFast App will free the rx buffer.
+        gRxBuf = AllocatePool (DATA_SIZE);
+        ASSERT (gRxBuf != NULL);
+        InvalidateDataCacheRange (gRxBuf, DATA_SIZE);
         req->bufdma = (UINT64 *)gRxBuf;
         req->length = 512;
         DwUsb3EndPointXStartTransfer (pcd, ep);
@@ -2067,9 +2071,6 @@ DwUsb3RequestDone (
     if (!ep->is_in) {
       ASSERT (req->actual <= req->length);
       mDataReceivedCallback (req->actual, gRxBuf);
-      {
-        *(CHAR8 *)(gRxBuf + req->actual) = '\0';
-      }
     }
   }
   req->actual = 0;
@@ -2109,10 +2110,10 @@ DwUsb3EndPointcompleteRequest (
   } else {
     // OUT ep
     byte_count = req->length - GET_DSCSTS_XFERCNT (desc->status);
-    req->actual += byte_count;
-    req->bufdma += byte_count;
 DEBUG ((DEBUG_ERROR, "#%a, %d, actual:%d, bufdma:0x%x\n",
 	__func__, __LINE__, req->actual, (UINTN)req->bufdma));
+    req->actual += byte_count;
+    //req->bufdma += byte_count;
     // reset OUT tri
     ep->tri_out = 0;
     // OUT transfer complete or not
@@ -2124,9 +2125,22 @@ DEBUG ((DEBUG_ERROR, "#%a, %d, actual:%d, bufdma:0x%x\n",
       usb3_pcd_ep_t                 *ep = &pcd->out_ep;
       usb3_pcd_req_t                *req = &ep->req;
 
+      ZeroMem (req, sizeof (usb3_pcd_req_t));
+      gRxBuf = AllocatePool (DATA_SIZE);
+      ASSERT (gRxBuf != NULL);
+      InvalidateDataCacheRange (gRxBuf, DATA_SIZE);
       req->bufdma = (UINT64 *)gRxBuf;
       req->length = 512;
       DwUsb3EndPointXStartTransfer (pcd, ep);
+DEBUG ((DEBUG_ERROR, "#%a, %d, ep0 state:%d\n", __func__, __LINE__, pcd->ep0state));
+
+#if 0
+      pcd->ep0state = EP0_IDLE;
+      pcd->ep0.stopped = 1;
+      pcd->ep0.is_in = 0;  // OUT for next SETUP
+      // prepare for more SETUP packets
+      DwUsb3Ep0OutStart (pcd);
+#endif
     }
   }
 }
@@ -2336,10 +2350,12 @@ DwUsb3EntryPoint (
   if (gEndPoint0StatusBuf == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
+#if 0
   gRxBuf = UncachedAllocatePages (1);
   if (gRxBuf == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
+#endif
   Status = gBS->LocateProtocol (&gDwUsbProtocolGuid, NULL, (VOID **) &DwUsb);
   if (EFI_ERROR (Status)) {
     return Status;
