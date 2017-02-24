@@ -199,12 +199,10 @@ STATIC struct usb_enum_port_param usb_port_activity_config = {
   .bInterfaceProtocol = USB_ENUM_INTERFACE_ADB_PROTOCOL
 };
 
-#define USB_SERIAL_LEN 16
-UINT16 adb_string_manu[] = {'F', 'a', 's', 't', 'b',
-	'o', 'o', 't', '2', '.', '0'};
-UINT16 adb_string_prod[] = {'H', 'I', '3', '6', '5', '0'};
-UINT16 string_serial[USB_SERIAL_LEN] = {'0', '1', '2', '3', '4', '5', '6',
-	'7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+CHAR16 adb_string_manu[] = L"Fastboot2.0";
+CHAR16 adb_string_prod[] = L"HiKey960";
+CHAR16 string_serial[] = L"0123456789ABCDEF";
+
 STATIC
 UINT32
 DwUsb3GetEventBufEvent (
@@ -1900,21 +1898,21 @@ DwUsb3DoGetDescriptor (
         value = 0x4;
         break;
       case STRING_MANUFACTURER:
-        buf[0] = (UINT8)sizeof (adb_string_manu);
+        buf[0] = (StrLen (adb_string_manu) + 1) * sizeof (CHAR16);
         buf[1] = UDESC_STRING;
-        CopyMem (buf + 2, adb_string_manu, sizeof (adb_string_manu));
+        StrCpy ((CHAR16 *)(buf + 2), adb_string_manu);
         value = buf[0];
         break;
       case STRING_PRODUCT:
-        buf[0] = (UINT8)sizeof (adb_string_prod);
+        buf[0] = (StrLen (adb_string_prod) + 1) * sizeof (CHAR16);
         buf[1] = UDESC_STRING;
-        CopyMem (buf + 2, adb_string_prod, sizeof (adb_string_prod));
+        StrCpy ((CHAR16 *)(buf + 2), adb_string_prod);
         value = buf[0];
         break;
       case STRING_SERIAL:
-        buf[0] = (UINT8)sizeof (string_serial);
+        buf[0] = (StrLen (string_serial) + 1) * sizeof (CHAR16);
         buf[1] = UDESC_STRING;
-        CopyMem (buf + 2, string_serial, sizeof (string_serial));
+        StrCpy ((CHAR16 *)(buf + 2), string_serial);
         value = buf[0];
         break;
       default:
