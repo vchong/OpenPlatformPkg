@@ -33,14 +33,13 @@
 [Protocols]
   gDwUsbProtocolGuid
   gEfiDriverBindingProtocolGuid
-  gEmbeddedGpioProtocolGuid
 
 [Packages]
   MdePkg/MdePkg.dec
   MdeModulePkg/MdeModulePkg.dec
   EmbeddedPkg/EmbeddedPkg.dec
-  OpenPlatformPkg/Drivers/Usb/DwUsbDxe/DwUsbDxe.dec
+  OpenPlatformPkg/Drivers/Usb/DwUsb3Dxe/DwUsb3Dxe.dec
   OpenPlatformPkg/Platforms/Hisilicon/HiKey960/HiKey960.dec
 
 [Depex]
-  BEFORE gDwUsbDeviceGuid
+  TRUE
