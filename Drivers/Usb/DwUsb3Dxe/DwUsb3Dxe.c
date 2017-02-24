@@ -82,10 +82,12 @@ STATIC DW_USB_PROTOCOL          *DwUsb;
 STATIC usb3_pcd_t               gPcd;
 STATIC UINT32                   *gEventBuf, *gEventPtr;
 STATIC struct usb_device_descriptor   gDwUsb3DevDesc;
+STATIC VOID                     *gRxBuf;
 
 STATIC usb_setup_pkt_t                *gEndPoint0SetupPacket;
 #define USB3_STATUS_BUF_SIZE    512
 STATIC UINT8                          *gEndPoint0StatusBuf;
+STATIC USB_DEVICE_RX_CALLBACK         mDataReceivedCallback;
 /*
 	UINT8 ep0_status_buf[USB3_STATUS_BUF_SIZE];
 */
@@ -407,19 +409,16 @@ DwUsb3EnableEp (
   IN usb3_pcd_ep_t         *ep
   )
 {
-  UINT32                   EpIdxNum, Dalepena;
+  UINT32                   Dalepena;
 
-  EpIdxNum = ep->num * 2;
-  if (ep->is_in) {
-    EpIdxNum += 1;
-  }
   Dalepena = MmioRead32 (DALEPENA);
   /* If the EP is already enabled, skip to set it again. */
-  if (Dalepena & (1 << EpIdxNum)) {
+  if (Dalepena & (1 << EpIdx)) {
     return;
   }
-  Dalepena |= 1 << EpIdxNum;
+  Dalepena |= 1 << EpIdx;
   MmioWrite32 (DALEPENA, Dalepena);
+DEBUG ((DEBUG_ERROR, "#%a, %d, Dalepena:0x%x\n", __func__, __LINE__, MmioRead32 (DALEPENA)));
 }
 
 STATIC
@@ -466,6 +465,7 @@ DwUsb3EpActivate (
 
   /* Start a new configurate when enable the first EP. */
   if (!pcd->eps_enabled) {
+DEBUG ((DEBUG_ERROR, "#%a, %d, activate ep1\n", __func__, __LINE__));
     pcd->eps_enabled = 1;
     /* Issue DEPCFG command to physical EP1 (logical EP0 IN) first.
      * It resets the core's Tx FIFO mapping table.
@@ -612,8 +612,7 @@ DwUsb3Init (
   CLEAR_EVENTBUF ();
 #else
   Data = MmioRead32 (GEVNTCOUNT (0));
-//  DEBUG ((DEBUG_ERROR, "#%a, %d, pending int count:%d, siz:0x%x\n", __func__, __LINE__, Data, MmioRead32 (GEVNTSIZ (0))));
-  MmioOr32 (GEVNTCOUNT (0), Data);
+  MmioWrite32 (GEVNTCOUNT (0), Data);
 #endif
   /* enable device interrupts */
   MmioWrite32 (DEVTEN, DEVTEN_CONNECTDONEEN | DEVTEN_USBRSTEN);
@@ -1040,14 +1039,11 @@ DwUsb3EndPoint0StartTransfer (
     if (pcd->ep0state == EP0_IN_STATUS_PHASE) {
       if (ep0->three_stage) {
         desc_type = TRBCTL_STATUS_3;
-        //desc_type = DSCCTL_TRBCTL (TRBCTL_STATUS_3);
       } else {
         desc_type = TRBCTL_STATUS_2;
-        //desc_type = DSCCTL_TRBCTL (TRBCTL_STATUS_2);
       }
     } else {
       desc_type = TRBCTL_CTLDATA_1ST;
-      //desc_type = DSCCTL_TRBCTL (TRBCTL_CTLDATA_1ST);
     }
     DwUsb3FillDesc (
       desc,
@@ -1064,18 +1060,14 @@ DwUsb3EndPoint0StartTransfer (
     // start DMA on EP0 OUT
     // DMA Descriptor (TRB) setup
     len = ALIGN (req->length, ep0->maxpacket);
-    //len = (req->length + ep0->maxpacket - 1) & ~(ep0->maxpacket - 1);
     if (pcd->ep0state == EP0_OUT_STATUS_PHASE) {
       if (ep0->three_stage) {
         desc_type = TRBCTL_STATUS_3;
-        //desc_type = DSCCTL_TRBCTL (TRBCTL_STATUS_3);
       } else {
         desc_type = TRBCTL_STATUS_2;
-        //desc_type = DSCCTL_TRBCTL (TRBCTL_STATUS_2);
       }
     } else {
       desc_type = TRBCTL_CTLDATA_1ST;
-      //desc_type = DSCCTL_TRBCTL (TRBCTL_CTLDATA_1ST);
     }
     DwUsb3FillDesc (
       desc,
@@ -1088,10 +1080,25 @@ DwUsb3EndPoint0StartTransfer (
       );
     // issue DEPSTRTXFER command to EP0 OUT
     ep0->tri_out = DwUsb3DepStartXfer (EP_OUT_IDX (0), desc_dma, 0);
+    {
+      UINTN Index;
+      for (Index = 0; Index < 10; Index++) {
+        DEBUG ((DEBUG_ERROR, "#%a, %d, OUT %x-%x-%x-%x\n",
+                __func__, __LINE__, desc->bptl, desc->bpth, desc->status, desc->control));
+        if (desc->control & DSCCTL_HWO) {
+          MicroSecondDelay (20);
+        } else {
+          DEBUG ((DEBUG_ERROR, "#%a, %d, OUT %x-%x-%x-%x\n",
+                  __func__, __LINE__, desc->bptl, desc->bpth, desc->status, desc->control));
+          break;
+        }
+      }
+
+    }
   }
 }
 
-#if 0
+STATIC
 INTN
 DwUsb3EndPointXStartTransfer (
   IN usb3_pcd_t       *pcd,
@@ -1167,6 +1174,7 @@ DwUsb3EndPointXStartTransfer (
   return 0;
 }
 
+#if 0
 STATIC
 VOID
 DwUsb3EndPointXStopTransfer (
@@ -1234,6 +1242,7 @@ DwUsb3HandleEndPoint0 (
   usb3_dma_desc_t     *desc;
   UINT32              byte_count, len;
 
+DEBUG ((DEBUG_ERROR, "#%a, %d, state:%d\n", __func__, __LINE__, pcd->ep0state));
   switch (pcd->ep0state) {
   case EP0_IN_DATA_PHASE:
     if (req == NULL) {
@@ -1740,7 +1749,7 @@ DwUsb3DoSetConfig (
   }
 
   if (!wvalue || (wvalue == CONFIG_VALUE)) {
-    UINT32 speed;
+    //UINT32 speed;
 
     pcd->new_config = (UINT8)wvalue;
     // set new configuration
@@ -1751,13 +1760,22 @@ DwUsb3DoSetConfig (
       // activate bulk out endpoint
       ep = &pcd->out_ep;
       Usb3PcdEpEnable (pcd, ep);
+#if 0
       // prepare for next bulk transfer
       speed = DwUsb3GetDeviceSpeed (pcd);
       (VOID)speed;
-#if 0
       g_usb_ops->status
 #endif
       pcd->state = USB3_STATE_CONFIGURED;
+      {
+        // prepare for EP1 OUT
+        usb3_pcd_ep_t                 *ep = &pcd->out_ep;
+        usb3_pcd_req_t                *req = &ep->req;
+
+        req->bufdma = (UINT64 *)gRxBuf;
+        req->length = 512;
+        DwUsb3EndPointXStartTransfer (pcd, ep);
+      }
     } else {
       pcd->state = USB3_STATE_ADDRESSED;
     }
@@ -2045,6 +2063,14 @@ DwUsb3RequestDone (
   }
   if (req->complete) {
     req->complete (req->actual, status);
+  } else {
+    if (!ep->is_in) {
+      ASSERT (req->actual <= req->length);
+      mDataReceivedCallback (req->actual, gRxBuf);
+      {
+        *(CHAR8 *)(gRxBuf + req->actual) = '\0';
+      }
+    }
   }
   req->actual = 0;
 }
@@ -2085,12 +2111,23 @@ DwUsb3EndPointcompleteRequest (
     byte_count = req->length - GET_DSCSTS_XFERCNT (desc->status);
     req->actual += byte_count;
     req->bufdma += byte_count;
+DEBUG ((DEBUG_ERROR, "#%a, %d, actual:%d, bufdma:0x%x\n",
+	__func__, __LINE__, req->actual, (UINTN)req->bufdma));
     // reset OUT tri
     ep->tri_out = 0;
     // OUT transfer complete or not
     // complete the OUT request
     // FIXME flush dma?
     DwUsb3RequestDone (pcd, ep, req, 0);
+    {
+      // prepare for EP1 OUT
+      usb3_pcd_ep_t                 *ep = &pcd->out_ep;
+      usb3_pcd_req_t                *req = &ep->req;
+
+      req->bufdma = (UINT64 *)gRxBuf;
+      req->length = 512;
+      DwUsb3EndPointXStartTransfer (pcd, ep);
+    }
   }
 }
 
@@ -2116,6 +2153,9 @@ DwUsb3HandleEndPointInterrupt (
     ep = DwUsb3GetOutEndPoint (pcd, epnum);
   }
 
+DEBUG ((DEBUG_ERROR, "#%a, %d, EP%d %a, event:0x%x, int:0x%x\n",
+	__func__, __LINE__, epnum, (is_in) ? "IN" : "OUT",
+	event, (event & GEVNT_DEPEVT_INTTYPE_MASK) >> 6));
   switch (event & GEVNT_DEPEVT_INTTYPE_MASK) {
   case GEVNT_DEPEVT_INTTYPE_XFER_CMPL:
     ep->xfer_started = 0;
@@ -2252,6 +2292,7 @@ DwUsb3Start (
                   DW_INTERRUPT_POLL_PERIOD
                   );
   ASSERT_EFI_ERROR (Status);
+  mDataReceivedCallback = RxCallback;
   return Status;
 }
 
@@ -2262,12 +2303,15 @@ DwUsb3Send (
   IN  CONST VOID  *Buffer
   )
 {
-#if 0
-    EpTx (EndpointIndex, Buffer, Size);
-    return EFI_SUCCESS;
-#else
+  usb3_pcd_t                    *pcd = &gPcd;
+  usb3_pcd_ep_t                 *ep = &pcd->in_ep;
+  usb3_pcd_req_t                *req = &ep->req;
+
+  WriteBackDataCacheRange ((VOID *)Buffer, Size);
+  req->bufdma = (UINT64 *)Buffer;
+  req->length = Size;
+  DwUsb3EndPointXStartTransfer (pcd, ep);
   return EFI_SUCCESS;
-#endif
 }
 
 USB_DEVICE_PROTOCOL mUsbDevice = {
@@ -2290,6 +2334,10 @@ DwUsb3EntryPoint (
   }
   gEndPoint0StatusBuf = UncachedAllocatePages (EFI_SIZE_TO_PAGES (USB3_STATUS_BUF_SIZE * sizeof (UINT8)));
   if (gEndPoint0StatusBuf == NULL) {
+    return EFI_OUT_OF_RESOURCES;
+  }
+  gRxBuf = UncachedAllocatePages (1);
+  if (gRxBuf == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
   Status = gBS->LocateProtocol (&gDwUsbProtocolGuid, NULL, (VOID **) &DwUsb);
