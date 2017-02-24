@@ -62,12 +62,13 @@
 #define GEVNTCOUNT_EVNTCOUNT(x)          ((x) & 0xFFFF)
 
 // Non-Endpoint specific event flag
-#define GEVNT_INTTYPE_MASK               (0xEF << 1)
-#define GEVNT_INTTYPE(x)                 (((x) & 0xEF) << 1)
-#define GEVNT_INTTYPE_I2C                BIT5
-#define GEVNT_INTTYPE_CARKIT             BIT4
-#define GEVNT_INTTYPE_OTG                BIT2
-#define GEVNT_INTTYPE_DEV                BIT1
+#define GEVNT_INTTYPE_MASK               (0x7F << 1)
+#define GEVNT_INTTYPE(x)                 (((x) & 0x7F) << 1)
+#define EVENT_I2C_INT                    4
+#define EVENT_CARKIT_INT                 3
+#define EVENT_OTG_INT                    1
+#define EVENT_DEV_INT                    0
+
 #define GEVNT_NON_EP                     BIT0
 // Endpoint specific event flag
 #define GEVNT_DEPEVT_INTTYPE_MASK        (0xF << 6)
@@ -103,8 +104,8 @@
 
 #define DCFG_NUMP_MASK                   (0x1F << 17)
 #define DCFG_NUMP(x)                     (((x) & 0x1F) << 17)
-#define DCFG_DEVADDR_MASK                (0x3F << 3)
-#define DCFG_DEVADDR(x)                  (((x) & 0x3F) << 3)
+#define DCFG_DEVADDR_MASK                (0x7F << 3)
+#define DCFG_DEVADDR(x)                  (((x) & 0x7F) << 3)
 #define DCFG_DEVSPD_MASK                 (0x7)
 #define DCFG_DEVSPD(x)                   ((x) & 0x7)
 #define DEVSPD_HS_PHY_30MHZ_OR_60MHZ     0
@@ -125,6 +126,7 @@
 #define DEVTEN                           (DW_USB3_BASE + 0xC708)
 #define DEVTEN_CONNECTDONEEN             BIT2
 #define DEVTEN_USBRSTEN                  BIT1
+#define DEVTEN_DISCONNEN                 BIT0
 
 #define DSTS                             (DW_USB3_BASE + 0xC70C)
 
@@ -280,6 +282,9 @@
 #define UF_LTM_ENABLE		50
 
 #define CONFIG_VALUE    1
+
+#define USB3_BULK_IN_EP                  1
+#define USB3_BULK_OUT_EP                 1
 
 struct usb3_pcd;
 

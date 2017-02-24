@@ -66,13 +66,36 @@
 #define USB3_STATE_ADDRESSED         2
 #define USB3_STATE_CONFIGURED        3
 
+#define GET_EVENTBUF_COUNT()       (GEVNTCOUNT_EVNTCOUNT (MmioRead32 (GEVNTCOUNT (0))))
+#define UPDATE_EVENTBUF_COUNT(x)   (MmioWrite32 (GEVNTCOUNT (0), GEVNTCOUNT_EVNTCOUNT (x)))
+#define CLEAR_EVENTBUF()           do {                                                \
+                                     MmioOr32 (GEVNTSIZ (0), GEVNTSIZ_EVNTINTMASK);    \
+                                     MmioOr32 (GEVNTCOUNT (0), 0);                     \
+                                   } while (0)
+
+#define SET_DEVADDR(x)             (MmioAndThenOr32 (DCFG, ~DCFG_DEVADDR_MASK, DCFG_DEVADDR (x)))
+
 EFI_GUID  gDwUsbProtocolGuid = DW_USB_PROTOCOL_GUID;
 
 STATIC DW_USB_PROTOCOL          *DwUsb;
 
 STATIC usb3_pcd_t               gPcd;
-STATIC UINT32                   gEventBuf[DWUSB3_EVENT_BUF_SIZE];
-STATIC UINT32                   *gEventPtr;
+STATIC UINT32                   *gEventBuf, *gEventPtr;
+
+STATIC
+UINT32
+DwUsb3GetEventBufEvent (
+  IN UINTN               Size
+  )
+{
+  UINT32                 Event;
+
+  Event = *gEventPtr++;
+  if ((UINT32)(UINTN)gEventPtr >= (UINT32)(UINTN)gEventBuf + Size) {
+    gEventPtr = gEventBuf;
+  }
+  return Event;
+}
 
 STATIC
 VOID
@@ -93,69 +116,6 @@ DwUsb3SetFifoSize (
     ASSERT (0);
   }
   MmioWrite32 (Reg, FIFOSIZ_DEP (Depth) | FIFOSIZ_ADDR (Addr));
-}
-
-STATIC
-VOID
-DwUsb3SetAddress (
-  IN UINT32              Addr
-  )
-{
-  UINT32                 Data;
-
-  Data = MmioRead32 (DCFG) & ~DCFG_DEVADDR_MASK;
-  Data |= DCFG_DEVADDR (Addr);
-  MmioWrite32 (DCFG, Data);
-}
-
-STATIC
-VOID
-DwUsb3DisableFlushEventbufIntr (
-  VOID
-  )
-{
-  UINT32                 Data;
-
-  Data = MmioRead32 (GEVNTSIZ (0)) | GEVNTSIZ_EVNTINTMASK;
-  MmioWrite32 (GEVNTSIZ (0), Data);
-  Data = MmioRead32 (GEVNTCOUNT (0));
-  MmioWrite32 (GEVNTCOUNT (0), Data);
-}
-
-STATIC
-UINTN
-DwUsb3GetEventBufCount (
-  VOID
-  )
-{
-  UINT32                 Data;
-
-  Data = MmioRead32 (GEVNTCOUNT (0));
-  return GEVNTCOUNT_EVNTCOUNT (Data);
-}
-
-STATIC
-VOID
-DwUsb3UpdateEventBufCount (
-  IN UINTN               Cnt
-  )
-{
-  MmioWrite32 (GEVNTCOUNT (0), GEVNTCOUNT_EVNTCOUNT (Cnt));
-}
-
-STATIC
-UINT32
-DwUsb3GetEventBufEvent (
-  IN UINTN               Size
-  )
-{
-  UINT32                 Event;
-
-  Event = *gEventPtr++;
-  if ((UINT32)(UINTN)gEventPtr >= (UINT32)(UINTN)&gEventBuf + Size) {
-    gEventPtr = gEventBuf;
-  }
-  return Event;
 }
 
 STATIC
@@ -213,7 +173,7 @@ DwUsb3DepStartNewCfg (
   /* start the command */
   MmioWrite32 (
     DEPCMD (EpIdx),
-    DEPCMD_COMMANDPARAM (RsrcIdx) | CMDTYPE_START_NEW_CFG | DEPCMD_CMDACT
+    DEPCMD_XFER_RSRC_IDX (RsrcIdx) | CMDTYPE_START_NEW_CFG | DEPCMD_CMDACT
     );
   Handshake (DEPCMD (EpIdx), DEPCMD_CMDACT, 0);
 }
@@ -346,27 +306,23 @@ DwUsb3Ep0Activate (
   IN OUT usb3_pcd_t         *pcd
   )
 {
-  UINT32                  DiepCfg0, DoepCfg0, DiepCfg1, DoepCfg1;
-  UINT32                  DiepCfg2 = 0, DoepCfg2 = 0;
-
-  DiepCfg0 = EPCFG0_EPTYPE (EPTYPE_CONTROL);
-  DiepCfg1 = EPCFG1_XFER_NRDY | EPCFG1_XFER_CMPL | EPCFG1_EP_DIR;
-  DoepCfg0 = EPCFG0_EPTYPE (EPTYPE_CONTROL);
-  DoepCfg1 = EPCFG1_XFER_CMPL | EPCFG1_XFER_NRDY;
-
-  /* Default to MPS of 512 (will reconfigure after ConnectDone event) */
-  DiepCfg0 |= EPCFG0_MPS (512);
-  DoepCfg0 |= EPCFG0_MPS (512);
-
-  DiepCfg0 |= EPCFG0_TXFNUM (pcd->ep0.tx_fifo_num);
-
   /* issue DEPCFG command to EP0 OUT */
   DwUsb3DepStartNewCfg (EP_OUT_IDX (0), 0);
-  DwUsb3DepCfg (EP_OUT_IDX (0), DoepCfg0, DoepCfg1, DoepCfg2);
+  DwUsb3DepCfg (
+    EP_OUT_IDX (0),
+    EPCFG0_EPTYPE (EPTYPE_CONTROL) | EPCFG0_MPS (512),
+    EPCFG1_XFER_CMPL | EPCFG1_XFER_NRDY,
+    0
+    );
   /* issue DEPSTRMCFG command to EP0 OUT */
   DwUsb3DepXferCfg (EP_OUT_IDX (0), 1);  // one stream
   /* issue DEPCFG command to EP0 IN */
-  DwUsb3DepCfg (EP_IN_IDX (0), DiepCfg0, DiepCfg1, DiepCfg2);
+  DwUsb3DepCfg (
+    EP_IN_IDX (0),
+    EPCFG0_EPTYPE (EPTYPE_CONTROL)  | EPCFG0_MPS (512) | EPCFG0_TXFNUM (pcd->ep0.tx_fifo_num),
+    EPCFG1_XFER_NRDY | EPCFG1_XFER_CMPL | EPCFG1_EP_DIR,
+    0
+    );
   /* issue DEPSTRMCFG command to EP0 IN */
   DwUsb3DepXferCfg (EP_IN_IDX (0), 1);  // one stream
   pcd->ep0.active = 1;
@@ -441,12 +397,9 @@ DwUsb3Ep0OutStart (
   )
 {
   usb3_dma_desc_t        *desc;
-  UINT64                 desc_dma;
-  UINT8                  tri;
 
   /* Get the SETUP packet DMA Descriptor (TRB) */
   desc = pcd->ep0_setup_desc;
-  desc_dma = (UINT64)pcd->ep0_setup_desc;
 
   /* DMA Descriptor setup */
   DwUsb3FillDesc (
@@ -460,8 +413,7 @@ DwUsb3Ep0OutStart (
     );
 
   /* issue DEPSTRTXFER command to EP0 OUT */
-  tri = DwUsb3DepStartXfer (EP_OUT_IDX (0), desc_dma, 0);
-  pcd->ep0.tri_out = tri;
+  pcd->ep0.tri_out = DwUsb3DepStartXfer (EP_OUT_IDX (0), (UINT64)desc, 0);
 }
 
 STATIC
@@ -475,25 +427,20 @@ DwUsb3Init (
 
   /* soft reset the usb core */
   do {
-    Data = MmioRead32 (DCTL);
-    Data &= ~DCTL_RUN_STOP;
-    Data |= DCTL_CSFTRST;
-    MmioWrite32 (DCTL, Data);
+    MmioAndThenOr32 (DCTL, ~DCTL_RUN_STOP, DCTL_CSFTRST);
 
     do {
       MicroSecondDelay (1000);
       Data = MmioRead32 (DCTL);
     } while (Data & DCTL_CSFTRST);
+    // wait for at least 3 PHY clocks
     MicroSecondDelay (1000);
   } while (0);
 
   pcd->link_state = 0;
 
   /* TI PHY: Set Turnaround Time = 9 (8-bit UTMI+ / ULPI) */
-  Data = MmioRead32 (GUSB2PHYCFG (0));
-  Data &= ~GUSB2PHYCFG_USBTRDTIM_MASK;
-  Data |= GUSB2PHYCFG_USBTRDTIM (9);
-  MmioWrite32 (GUSB2PHYCFG (0), Data);
+  MmioAndThenOr32 (GUSB2PHYCFG (0), ~GUSB2PHYCFG_USBTRDTIM_MASK, GUSB2PHYCFG_USBTRDTIM (9));
 
   /* set TX FIFO size */
   Addr = TX_FIFO_ADDR;
@@ -501,14 +448,14 @@ DwUsb3Init (
   Addr += RAM_TX0_DEPTH / RAM_WIDTH;
   DwUsb3SetFifoSize (Addr, RAM_TX1_DEPTH / RAM_WIDTH, FIFO_DIR_TX, 1);
   /* set RX FIFO size */
-  Addr = RX_FIFO_ADDR;
-  DwUsb3SetFifoSize (Addr, RAM_RX_DEPTH / RAM_WIDTH, FIFO_DIR_RX, 0);
+  DwUsb3SetFifoSize (RX_FIFO_ADDR, RAM_RX_DEPTH / RAM_WIDTH, FIFO_DIR_RX, 0);
 
   /* set LFPS filter delay1trans */
-  Data = MmioRead32 (GUSB3PIPECTL (0));
-  Data &= ~(PIPECTL_DELAYP1TRANS | PIPECTL_TX_DEMPH_MASK);
-  Data |= PIPECTL_LFPS_FILTER | PIPECTL_TX_DEMPH (1);
-  MmioWrite32 (GUSB3PIPECTL (0), Data);
+  MmioAndThenOr32 (
+    GUSB3PIPECTL (0),
+    ~PIPECTL_DELAYP1TRANS,
+    PIPECTL_LFPS_FILTER | PIPECTL_TX_DEMPH (1)
+    );
 
   /* set GCTL */
   Data = GCTL_U2EXIT_LFPS | GCTL_PRTCAPDIR_DEVICE | GCTL_U2RSTECN |
@@ -516,31 +463,29 @@ DwUsb3Init (
   MmioWrite32 (GCTL, Data);
 
   /* init event buf */
-  MmioWrite32 (GEVNTADRL(0), (UINT32)(UINTN)&gEventBuf);
-  MmioWrite32 (GEVNTADRH(0), (UINTN)&gEventBuf >> 32);
+  MmioWrite32 (GEVNTADRL(0), (UINT32)(UINTN)gEventBuf);
+  MmioWrite32 (GEVNTADRH(0), (UINTN)gEventBuf >> 32);
   MmioWrite32 (GEVNTSIZ(0), DWUSB3_EVENT_BUF_SIZE << 2);
   MmioWrite32 (GEVNTCOUNT(0), 0);
 
   /* set max speed to super speed */
-  Data = MmioRead32 (DCFG) & ~DCFG_DEVSPD_MASK;
-  Data |= DCFG_DEVSPD (DEVSPD_SS_PHY_125MHZ_OR_250MHZ);
-  MmioWrite32 (DCFG, Data);
+  MmioAndThenOr32 (
+    DCFG,
+    ~DCFG_DEVSPD_MASK,
+    DCFG_DEVSPD (DEVSPD_SS_PHY_125MHZ_OR_250MHZ)
+    );
   /* set nump */
-  Data = MmioRead32 (DCFG) & ~DCFG_NUMP_MASK;
-  Data |= DCFG_NUMP (16);
-  MmioWrite32 (DCFG, Data);
+  MmioAndThenOr32 (DCFG, ~DCFG_NUMP_MASK, DCFG_NUMP (16));
 
   /* init address */
-  DwUsb3SetAddress (0);
+  SET_DEVADDR (0);
 
   /* disable phy suspend */
-  Data = MmioRead32 (GUSB3PIPECTL (0)) & ~PIPECTL_SUSPEND_EN;
-  MmioWrite32 (GUSB3PIPECTL (0), Data);
-  Data = MmioRead32 (GUSB2PHYCFG (0)) & ~GUSB2PHYCFG_SUSPHY;
-  MmioWrite32 (GUSB2PHYCFG (0), Data);
+  MmioAnd32 (GUSB3PIPECTL (0), ~PIPECTL_SUSPEND_EN);
+  MmioAnd32 (GUSB2PHYCFG (0), ~GUSB2PHYCFG_SUSPHY);
 
   /* clear any pending interrupts */
-  DwUsb3DisableFlushEventbufIntr ();
+  CLEAR_EVENTBUF ();
   /* enable device interrupts */
   MmioWrite32 (DEVTEN, DEVTEN_CONNECTDONEEN | DEVTEN_USBRSTEN);
   /* activate EP0 */
@@ -552,9 +497,10 @@ DwUsb3Init (
   MmioWrite32 (DALEPENA, EP_IN_IDX (0) | EP_OUT_IDX (0));
 
   /* set RUN/STOP bit */
-  Data = MmioRead32 (DCTL) | DCTL_RUN_STOP;
-  MmioWrite32 (DCTL, Data);
+  MmioOr32 (DCTL, DCTL_RUN_STOP);
 }
+
+#define ALIGN(x, a)     (((x) + ((a) - 1)) & ~((a) - 1))
 
 STATIC
 VOID
@@ -562,6 +508,71 @@ DriverInit (
   VOID
   )
 {
+  usb3_pcd_t          *pcd = &gPcd;
+  usb3_pcd_ep_t       *ep;
+
+  pcd->speed = USB_SPEED_UNKNOWN;
+
+  // init EP0
+  ep = &pcd->ep0;
+  ep->pcd = pcd;
+  ep->stopped = 1;
+  ep->is_in = 0;
+  ep->active = 0;
+  ep->phys = 0;
+  ep->num = 0;
+  ep->tx_fifo_num = 0;
+  ep->type = EPTYPE_CONTROL;
+  ep->maxburst = 0;
+  ep->maxpacket = USB3_MAX_EP0_SIZE;
+  ep->send_zlp = 0;
+  ep->req.length = 0;
+  ep->req.actual = 0;
+  pcd->ep0_req.length = 0;
+  pcd->ep0_req.actual = 0;
+
+  // init EP1 OUT
+  ep = &pcd->out_ep;
+  ep->pcd = pcd;
+  ep->stopped = 1;
+  ep->is_in = 0;
+  ep->active = 0;
+  ep->phys = USB3_BULK_OUT_EP << 1;
+  ep->num = 1;
+  ep->tx_fifo_num = 0;
+  // bulk ep is activated
+  ep->type = EPTYPE_BULK;
+  ep->maxburst = 0;
+  ep->maxpacket = USB3_MAX_PACKET_SIZE;
+  ep->send_zlp = 0;
+  ep->req.length = 0;
+  ep->req.actual = 0;
+
+  // init EP1 IN
+  ep = &pcd->in_ep;
+  ep->stopped = 1;
+  ep->is_in = 1;
+  ep->active = 0;
+  ep->phys = (USB3_BULK_IN_EP << 1) | 1;
+  ep->num = 1;
+  ep->tx_fifo_num = USB3_BULK_IN_EP;
+  // bulk ep is activated
+  ep->type = EPTYPE_BULK;
+  ep->maxburst = 0;
+  ep->maxpacket = USB3_MAX_PACKET_SIZE;
+  ep->send_zlp = 0;
+  ep->req.length = 0;
+  ep->req.actual = 0;
+
+  pcd->ep0state = EP0_IDLE;
+  pcd->ep0.maxpacket = USB3_MAX_EP0_SIZE;
+  pcd->ep0.type = EPTYPE_CONTROL;
+
+  pcd->ep0_setup_desc = (usb3_dma_desc_t *)ALIGN ((UINTN)pcd->ep0_setup, 16);
+  pcd->ep0_in_desc = (usb3_dma_desc_t *)ALIGN ((UINTN)pcd->ep0_in, 16);
+  pcd->ep0_out_desc = (usb3_dma_desc_t *)ALIGN ((UINTN)pcd->ep0_out, 16);
+  pcd->in_ep.ep_desc = (usb3_dma_desc_t *)ALIGN ((UINTN)pcd->in_ep.epx_desc, 16);
+  pcd->out_ep.ep_desc = (usb3_dma_desc_t *)ALIGN ((UINTN)pcd->out_ep.epx_desc, 16);
 }
 
 STATIC
@@ -606,7 +617,7 @@ DwUsb3HandleUsbResetInterrupt (
   }
 
   // set device address to 0
-  DwUsb3SetAddress (0);
+  SET_DEVADDR (0);
 
   pcd->ltm_enable = 0;
   DEBUG ((DEBUG_INFO, "usb reset\n"));
@@ -728,9 +739,11 @@ DwUsb3HandleDeviceInterrupt (
 {
   switch (Event & GEVNT_DEVT_MASK) {
   case GEVNT_DEVT_USBRESET:
+DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
     DwUsb3HandleUsbResetInterrupt (pcd);
     break;
   case GEVNT_DEVT_CONNDONE:
+DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
     DwUsb3HandleConnectDoneInterrupt (pcd);
     break;
   default:
@@ -1338,7 +1351,7 @@ DwUsb3DoSetAddress (
   usb_device_request_t *ctrl = &pcd->ep0_setup_pkt[0].req;
 
   if (ctrl->bmRequestType == UT_DEVICE) {
-    DwUsb3SetAddress (ctrl->wValue);
+    SET_DEVADDR (ctrl->wValue);
     pcd->ep0.is_in = 1;
     pcd->ep0state = EP0_IN_WAIT_NRDY;
     if (ctrl->wValue) {
@@ -1645,6 +1658,7 @@ DwUsb3HandleEndPointInterrupt (
   is_in = (UINT32)PhySep & 1;
   epnum = ((UINT32)PhySep >> 1) & 0xF;
 
+DEBUG ((DEBUG_ERROR, "#%a, %d, dir:%a, epnum:%d\n", __func__, __LINE__, is_in ? "IN" : "OUT", epnum));
   // Get the EP pointer
   if (is_in) {
     ep = DwUsb3GetInEndPoint (pcd, epnum);
@@ -1654,6 +1668,7 @@ DwUsb3HandleEndPointInterrupt (
 
   switch (event & GEVNT_DEPEVT_INTTYPE_MASK) {
   case GEVNT_DEPEVT_INTTYPE_XFER_CMPL:
+DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
     ep->xfer_started = 0;
     // complete the transfer
     if (epnum == 0) {
@@ -1663,6 +1678,7 @@ DwUsb3HandleEndPointInterrupt (
     }
     break;
   case GEVNT_DEPEVT_INTTYPE_XFER_NRDY:
+DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
     if (epnum == 0) {
       switch (pcd->ep0state) {
       case EP0_IN_WAIT_NRDY:
@@ -1696,27 +1712,30 @@ DwUsb3HandleEvent (
   UINT32              Count, Index, Event, Intr;
   UINT32              PhySep;
 
-  Count = DwUsb3GetEventBufCount ();
+  Count = GET_EVENTBUF_COUNT ();
   // reset event buffer when it's full
   if ((GEVNTCOUNT_EVNTCOUNT (Count) == GEVNTCOUNT_EVNTCOUNT_MASK) ||
       (Count >= DWUSB3_EVENT_BUF_SIZE * sizeof (UINT32))) {
-    DwUsb3UpdateEventBufCount (Count);
+    UPDATE_EVENTBUF_COUNT (Count);
     Count = 0;
   }
 
   for (Index = 0; Index < Count; Index += sizeof (UINT32)) {
     Event = DwUsb3GetEventBufEvent (DWUSB3_EVENT_BUF_SIZE);
-    DwUsb3UpdateEventBufCount (sizeof (UINT32));
+    UPDATE_EVENTBUF_COUNT (sizeof (UINT32));
     if (Event == 0) {
       // ignore null events
       continue;
     }
     if (Event & GEVNT_NON_EP) {
       Intr = Event & GEVNT_INTTYPE_MASK;
-      if (Intr == GEVNT_INTTYPE_DEV) {
+      if (Intr == GEVNT_INTTYPE (EVENT_DEV_INT)) {
         DwUsb3HandleDeviceInterrupt (pcd, Event);
+      } else {
+DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
       }
     } else {
+DEBUG ((DEBUG_ERROR, "#%a, %d\n", __func__, __LINE__));
       PhySep = (Event & GEVNT_DEPEVT_EPNUM_MASK) >> GEVNT_DEPEVT_EPNUM_SHIFT;
       DwUsb3HandleEndPointInterrupt (pcd, PhySep, Event);
     }
@@ -1841,6 +1860,11 @@ DwUsb3Start (
   EFI_STATUS             Status;
   EFI_EVENT              TimerEvent;
 
+  gEventBuf = UncachedAllocateAlignedZeroPool (DWUSB3_EVENT_BUF_SIZE, 64);
+  if (gEventBuf == NULL) {
+    return EFI_OUT_OF_RESOURCES;
+  }
+  gEventPtr = gEventBuf;
   DriverInit ();
   DwUsb3Init ();
   Status = gBS->CreateEvent (
