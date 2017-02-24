@@ -418,7 +418,6 @@ DwUsb3EnableEp (
   }
   Dalepena |= 1 << EpIdx;
   MmioWrite32 (DALEPENA, Dalepena);
-DEBUG ((DEBUG_ERROR, "#%a, %d, Dalepena:0x%x\n", __func__, __LINE__, MmioRead32 (DALEPENA)));
 }
 
 STATIC
@@ -465,7 +464,6 @@ DwUsb3EpActivate (
 
   /* Start a new configurate when enable the first EP. */
   if (!pcd->eps_enabled) {
-DEBUG ((DEBUG_ERROR, "#%a, %d, activate ep1\n", __func__, __LINE__));
     pcd->eps_enabled = 1;
     /* Issue DEPCFG command to physical EP1 (logical EP0 IN) first.
      * It resets the core's Tx FIFO mapping table.
@@ -626,7 +624,6 @@ DwUsb3Init (
 
   /* set RUN/STOP bit */
   MmioOr32 (DCTL, DCTL_RUN_STOP);
-//DEBUG ((DEBUG_ERROR, "#%a, %d, DCTL:0x%x\n", __func__, __LINE__, MmioRead32 (DCTL)));
 }
 
 #define ALIGN(x, a)     (((x) + ((a) - 1)) & ~((a) - 1))
@@ -1080,21 +1077,6 @@ DwUsb3EndPoint0StartTransfer (
       );
     // issue DEPSTRTXFER command to EP0 OUT
     ep0->tri_out = DwUsb3DepStartXfer (EP_OUT_IDX (0), desc_dma, 0);
-    {
-      UINTN Index;
-      for (Index = 0; Index < 10; Index++) {
-        DEBUG ((DEBUG_ERROR, "#%a, %d, OUT %x-%x-%x-%x\n",
-                __func__, __LINE__, desc->bptl, desc->bpth, desc->status, desc->control));
-        if (desc->control & DSCCTL_HWO) {
-          MicroSecondDelay (20);
-        } else {
-          DEBUG ((DEBUG_ERROR, "#%a, %d, OUT %x-%x-%x-%x\n",
-                  __func__, __LINE__, desc->bptl, desc->bpth, desc->status, desc->control));
-          break;
-        }
-      }
-
-    }
   }
 }
 
@@ -1242,7 +1224,6 @@ DwUsb3HandleEndPoint0 (
   usb3_dma_desc_t     *desc;
   UINT32              byte_count, len;
 
-DEBUG ((DEBUG_ERROR, "#%a, %d, state:%d\n", __func__, __LINE__, pcd->ep0state));
   switch (pcd->ep0state) {
   case EP0_IN_DATA_PHASE:
     if (req == NULL) {
@@ -2016,7 +1997,7 @@ DwUsb3DoSetup (
     DwUsb3DoSetConfig (pcd);
     MmioOr32 (DCTL, DCTL_ACCEPT_U1_EN);
     MmioOr32 (DCTL, DCTL_ACCEPT_U2_EN);
-    DEBUG ((DEBUG_ERROR, "enum done"));
+    DEBUG ((DEBUG_INFO, "enum done"));
     pcd->ltm_enable = 0;
     break;
   case UR_GET_CONFIG:
@@ -2110,8 +2091,6 @@ DwUsb3EndPointcompleteRequest (
   } else {
     // OUT ep
     byte_count = req->length - GET_DSCSTS_XFERCNT (desc->status);
-DEBUG ((DEBUG_ERROR, "#%a, %d, actual:%d, bufdma:0x%x\n",
-	__func__, __LINE__, req->actual, (UINTN)req->bufdma));
     req->actual += byte_count;
     //req->bufdma += byte_count;
     // reset OUT tri
@@ -2132,15 +2111,6 @@ DEBUG ((DEBUG_ERROR, "#%a, %d, actual:%d, bufdma:0x%x\n",
       req->bufdma = (UINT64 *)gRxBuf;
       req->length = 512;
       DwUsb3EndPointXStartTransfer (pcd, ep);
-DEBUG ((DEBUG_ERROR, "#%a, %d, ep0 state:%d\n", __func__, __LINE__, pcd->ep0state));
-
-#if 0
-      pcd->ep0state = EP0_IDLE;
-      pcd->ep0.stopped = 1;
-      pcd->ep0.is_in = 0;  // OUT for next SETUP
-      // prepare for more SETUP packets
-      DwUsb3Ep0OutStart (pcd);
-#endif
     }
   }
 }
@@ -2167,9 +2137,6 @@ DwUsb3HandleEndPointInterrupt (
     ep = DwUsb3GetOutEndPoint (pcd, epnum);
   }
 
-DEBUG ((DEBUG_ERROR, "#%a, %d, EP%d %a, event:0x%x, int:0x%x\n",
-	__func__, __LINE__, epnum, (is_in) ? "IN" : "OUT",
-	event, (event & GEVNT_DEPEVT_INTTYPE_MASK) >> 6));
   switch (event & GEVNT_DEPEVT_INTTYPE_MASK) {
   case GEVNT_DEPEVT_INTTYPE_XFER_CMPL:
     ep->xfer_started = 0;
