@@ -52,6 +52,8 @@
 #define HIKEY_ERASE_SIZE          (16 * 1024 * 1024)
 #define HIKEY_ERASE_BLOCKS        (HIKEY_ERASE_SIZE / EFI_PAGE_SIZE)
 
+#define BOOTIMG_KERNEL_ARGS_SIZE  1024
+
 typedef struct _FASTBOOT_PARTITION_LIST {
   LIST_ENTRY  Link;
   CHAR16      PartitionName[PARTITION_NAME_MAX_LENGTH];
@@ -680,13 +682,32 @@ HiKeyFastbootPlatformOemCommand (
   }
 }
 
+CHAR16 *
+HiKeyFastbootPlatformGetKernelArgs (
+  VOID
+  )
+{
+  CHAR16                             *CommandLineArgs;
+
+  CommandLineArgs = AllocateZeroPool (BOOTIMG_KERNEL_ARGS_SIZE);
+  if (CommandLineArgs == NULL) {
+    return NULL;
+  }
+  UnicodeSPrint (
+    CommandLineArgs, BOOTIMG_KERNEL_ARGS_SIZE,
+    L"root=/dev/mmcblk0p9 earlycon=pl011,0xf7113000"
+    );
+  return CommandLineArgs;
+}
+
 FASTBOOT_PLATFORM_PROTOCOL mPlatformProtocol = {
   HiKeyFastbootPlatformInit,
   HiKeyFastbootPlatformUnInit,
   HiKeyFastbootPlatformFlashPartition,
   HiKeyFastbootPlatformErasePartition,
   HiKeyFastbootPlatformGetVar,
-  HiKeyFastbootPlatformOemCommand
+  HiKeyFastbootPlatformOemCommand,
+  HiKeyFastbootPlatformGetKernelArgs
 };
 
 EFI_STATUS
