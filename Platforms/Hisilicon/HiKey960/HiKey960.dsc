@@ -355,10 +355,14 @@
   #
   gEmbeddedTokenSpaceGuid.PcdAndroidFastbootUsbVendorId|0x18d1
   gEmbeddedTokenSpaceGuid.PcdAndroidFastbootUsbProductId|0xd00d
-  gHiKey960TokenSpaceGuid.PcdAndroidFastbootNvmDevicePath|L"VenHw(D3987D4B-971A-435F-8CAF-4967EB627241)/Uart(115200,8,N,1)/VenMsg(7d916d80-5bb1-458c-a48f-e25f-dd51ef94)/UFS(0,3)"
+  gHiKey960TokenSpaceGuid.PcdAndroidFastbootNvmDevicePath|L"VenHw(D3987D4B-971A-435F-8CAF-4967EB627241)/Uart(115200,8,N,1)/VenMsg(7d916d80-5bb1-458c-a48f-e25f-dd51ef94)/UFS(0,3)/HD(4,GPT,00354BCD-BBCB-4CB3-B5AE-CDEFCB5DAC43,0x2400000,0x200000)"
   # Flash limit 128M/time, for memory concern
   gHiKey960TokenSpaceGuid.PcdArmFastbootFlashLimit|"134217728"
 
+  #
+  # Android Loader
+  #
+  gEmbeddedTokenSpaceGuid.PcdAndroidBootDevicePath|L"VenHw(D3987D4B-971A-435F-8CAF-4967EB627241)/Uart(115200,8,N,1)/VenMsg(7D916D80-5BB1-458C-A48F-E25FDD51EF94)/UFS(0x0,0x3)/HD(7,GPT,5C0F213C-17E1-4149-88C8-8B50FB4EC70E,0x16600000,0x4000000)"
 
 ################################################################################
 #
@@ -470,6 +474,14 @@
   # Fastboot
   #
   EmbeddedPkg/Application/AndroidFastboot/AndroidFastbootApp.inf {
+    <LibraryClasses>
+      BdsLib|ArmPkg/Library/BdsLib/BdsLib.inf
+  }
+
+  #
+  # Android Loader
+  #
+  EmbeddedPkg/Application/AndroidBoot/AndroidBootApp.inf {
     <LibraryClasses>
       BdsLib|ArmPkg/Library/BdsLib/BdsLib.inf
   }
