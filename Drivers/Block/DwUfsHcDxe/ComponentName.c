@@ -191,6 +191,8 @@ UfsHcComponentNameGetControllerName (
   OUT CHAR16                                          **ControllerName
   )
 {
+  EFI_STATUS                    Status;
+
   if (Language == NULL || ControllerName == NULL) {
     return EFI_INVALID_PARAMETER;
   }
@@ -200,6 +202,18 @@ UfsHcComponentNameGetControllerName (
   //
   if (ChildHandle != NULL) {
     return EFI_UNSUPPORTED;
+  }
+
+  //
+  // Make sure this driver is currently managing Controller Handle
+  //
+  Status = EfiTestManagedDevice (
+             ControllerHandle,
+             gUfsHcDriverBinding.DriverBindingHandle,
+             &gEfiPciIoProtocolGuid
+             );
+  if (EFI_ERROR (Status)) {
+    return Status;
   }
 
   return LookupUnicodeString2 (

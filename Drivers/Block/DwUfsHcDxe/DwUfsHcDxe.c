@@ -17,6 +17,10 @@
 
 #include "DwUfsHcDxe.h"
 
+#include <IndustryStandard/Pci.h>
+
+#include <Protocol/PciIo.h>
+
 //
 // Ufs Host Controller Driver Binding Protocol Instance
 //
@@ -551,9 +555,13 @@ UfsHcDriverBindingSupported (
   )
 {
   EFI_STATUS                Status;
-  EFI_DEVICE_PATH_PROTOCOL  *ParentDevicePath;
+  BOOLEAN                   UfsHcFound;
+  EFI_DEVICE_PATH_PROTOCOL  *ParentDevicePath = NULL;
+  EFI_PCI_IO_PROTOCOL       *PciIo = NULL;
+  PCI_TYPE00                PciData;
 
   ParentDevicePath = NULL;
+  UfsHcFound       = FALSE;
 
   //
   // UfsHcDxe is a device driver, and should ingore the
@@ -582,6 +590,64 @@ UfsHcDriverBindingSupported (
         This->DriverBindingHandle,
         Controller
         );
+
+  //
+  // Now test the EfiPciIoProtocol
+  //
+  Status = gBS->OpenProtocol (
+                  Controller,
+                  &gEfiPciIoProtocolGuid,
+                  (VOID **) &PciIo,
+                  This->DriverBindingHandle,
+                  Controller,
+                  EFI_OPEN_PROTOCOL_BY_DRIVER
+                  );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+  //
+  // Now further check the PCI header: Base class (offset 0x0B) and
+  // Sub Class (offset 0x0A). This controller should be an UFS controller
+  //
+  Status = PciIo->Pci.Read (
+                        PciIo,
+                        EfiPciIoWidthUint8,
+                        0,
+                        sizeof (PciData),
+                        &PciData
+                        );
+  if (EFI_ERROR (Status)) {
+    gBS->CloseProtocol (
+          Controller,
+          &gEfiPciIoProtocolGuid,
+          This->DriverBindingHandle,
+          Controller
+          );
+    return EFI_UNSUPPORTED;
+  }
+
+  //
+  // Since we already got the PciData, we can close protocol to avoid to carry it on for multiple exit points.
+  //
+  gBS->CloseProtocol (
+        Controller,
+        &gEfiPciIoProtocolGuid,
+        This->DriverBindingHandle,
+        Controller
+        );
+
+  //
+  // Examine UFS Host Controller PCI Configuration table fields
+  //
+  if (PciData.Hdr.ClassCode[2] == PCI_CLASS_MASS_STORAGE) {
+    if (PciData.Hdr.ClassCode[1] == 0x09 ) { //UFS Controller Subclass
+      UfsHcFound = TRUE;
+    }
+  }
+
+  if (!UfsHcFound) {
+    return EFI_UNSUPPORTED;
+  }
 
   return Status;
 }
@@ -630,16 +696,106 @@ UfsHcDriverBindingStart (
   )
 {
   EFI_STATUS                        Status;
+  EFI_PCI_IO_PROTOCOL               *PciIo;
   UFS_HOST_CONTROLLER_PRIVATE_DATA  *Private;
+  UINT64                            Supports;
+  UINT8                             BarIndex;
+  EFI_ACPI_ADDRESS_SPACE_DESCRIPTOR *BarDesc;
   UINT32                            BaseAddress;
 
+  PciIo    = NULL;
+  Private  = NULL;
+  Supports = 0;
+  BarDesc  = NULL;
   BaseAddress = PcdGet32 (PcdDwUfsHcDxeBaseAddress);
+
+  //
+  // Now test and open the EfiPciIoProtocol
+  //
+  Status = gBS->OpenProtocol (
+                  Controller,
+                  &gEfiPciIoProtocolGuid,
+                  (VOID **) &PciIo,
+                  This->DriverBindingHandle,
+                  Controller,
+                  EFI_OPEN_PROTOCOL_BY_DRIVER
+                  );
+  //
+  // Status == 0 - A normal execution flow, SUCCESS and the program proceeds.
+  // Status == ALREADY_STARTED - A non-zero Status code returned. It indicates
+  //           that the protocol has been opened and should be treated as a
+  //           normal condition and the program proceeds. The Protocol will not
+  //           opened 'again' by this call.
+  // Status != ALREADY_STARTED - Error status, terminate program execution
+  //
+  if (EFI_ERROR (Status)) {
+    //
+    // EFI_ALREADY_STARTED is also an error
+    //
+    return Status;
+  }
+
+  //BaseAddress = PcdGet32 (PcdDwUfsHcDxeBaseAddress);
   Private = AllocateCopyPool (sizeof (UFS_HOST_CONTROLLER_PRIVATE_DATA), &gUfsHcTemplate);
   if (Private == NULL) {
     Status = EFI_OUT_OF_RESOURCES;
     goto Done;
   }
+
   Private->RegBase = (UINTN)BaseAddress;
+  Private->PciIo = PciIo;
+
+  for (BarIndex = 0; BarIndex < PCI_MAX_BAR; BarIndex++) {
+    Status = PciIo->GetBarAttributes (
+                      PciIo,
+                      BarIndex,
+                      NULL,
+                      (VOID**) &BarDesc
+                      );
+    if (Status == EFI_UNSUPPORTED) {
+      continue;
+    } else if (EFI_ERROR (Status)) {
+      goto Done;
+    }
+
+    if (BarDesc->ResType == ACPI_ADDRESS_SPACE_TYPE_MEM) {
+      Private->BarIndex = BarIndex;
+      FreePool (BarDesc);
+      break;
+    }
+
+    FreePool (BarDesc);
+  }
+
+  Status = PciIo->Attributes (
+                    PciIo,
+                    EfiPciIoAttributeOperationGet,
+                    0,
+                    &Private->PciAttributes
+                    );
+
+  if (EFI_ERROR (Status)) {
+    goto Done;
+  }
+
+  Status = PciIo->Attributes (
+                    PciIo,
+                    EfiPciIoAttributeOperationSupported,
+                    0,
+                    &Supports
+                    );
+
+  if (!EFI_ERROR (Status)) {
+    Supports &= (UINT64)EFI_PCI_DEVICE_ENABLE;
+    Status    = PciIo->Attributes (
+                         PciIo,
+                         EfiPciIoAttributeOperationEnable,
+                         Supports,
+                         NULL
+                         );
+  } else {
+    goto Done;
+  }
 
   ///
   /// Install UFS_HOST_CONTROLLER protocol
@@ -653,6 +809,24 @@ UfsHcDriverBindingStart (
 
 Done:
   if (EFI_ERROR (Status)) {
+    if ((Private != NULL) && (Private->PciAttributes != 0)) {
+      //
+      // Restore original PCI attributes
+      //
+      Status = PciIo->Attributes (
+                        PciIo,
+                        EfiPciIoAttributeOperationSet,
+                        Private->PciAttributes,
+                        NULL
+                        );
+      ASSERT_EFI_ERROR (Status);
+    }
+    gBS->CloseProtocol (
+          Controller,
+          &gEfiPciIoProtocolGuid,
+          This->DriverBindingHandle,
+          Controller
+          );
     if (Private != NULL) {
       FreePool (Private);
     }
@@ -724,6 +898,27 @@ UfsHcDriverBindingStop (
                   &(Private->UfsHc)
                   );
   if (!EFI_ERROR (Status)) {
+    //
+    // Restore original PCI attributes
+    //
+    Status = Private->PciIo->Attributes (
+                               Private->PciIo,
+                               EfiPciIoAttributeOperationSet,
+                               Private->PciAttributes,
+                               NULL
+                               );
+    ASSERT_EFI_ERROR (Status);
+
+    //
+    // Close protocols opened by UFS host controller driver
+    //
+    gBS->CloseProtocol (
+           Controller,
+           &gEfiPciIoProtocolGuid,
+           This->DriverBindingHandle,
+           Controller
+           );
+
     FreePool (Private);
   }
 

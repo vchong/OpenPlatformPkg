@@ -23,6 +23,7 @@
 #include <Protocol/DevicePath.h>
 #include <Protocol/DriverBinding.h>
 #include <Protocol/LoadedImage.h>
+#include <Protocol/PciIo.h>
 #include <Protocol/UfsHostController.h>
 
 #include <Library/ArmLib.h>
@@ -122,6 +123,10 @@ struct _UFS_HOST_CONTROLLER_PRIVATE_DATA {
   EFI_HANDLE                         Handle;
 
   EDKII_UFS_HOST_CONTROLLER_PROTOCOL UfsHc;
+  EFI_PCI_IO_PROTOCOL                *PciIo;
+  UINT8                              BarIndex;
+  UINT64                             PciAttributes;
+
   UINTN                              RegBase;
 };
 

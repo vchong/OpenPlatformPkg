@@ -52,8 +52,9 @@
   UefiLib
 
 [Protocols]
-  gEfiDevicePathProtocolGuid                  ## TO_START
   gEdkiiUfsHostControllerProtocolGuid         ## BY_START
+  gEfiDevicePathProtocolGuid                  ## TO_START
+  gEfiPciIoProtocolGuid
 
 [Pcd]
   gDwUfsHcDxeTokenSpaceGuid.PcdDwUfsHcDxeBaseAddress
