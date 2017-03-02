@@ -152,6 +152,7 @@
 [LibraryClasses.common.DXE_DRIVER]
   DxeServicesLib|MdePkg/Library/DxeServicesLib/DxeServicesLib.inf
   MemoryAllocationLib|MdePkg/Library/UefiMemoryAllocationLib/UefiMemoryAllocationLib.inf
+  NonDiscoverableDeviceRegistrationLib|MdeModulePkg/Library/NonDiscoverableDeviceRegistrationLib/NonDiscoverableDeviceRegistrationLib.inf
   ReportStatusCodeLib|IntelFrameworkModulePkg/Library/DxeReportStatusCodeLibFramework/DxeReportStatusCodeLib.inf
   SecurityManagementLib|MdeModulePkg/Library/DxeSecurityManagementLib/DxeSecurityManagementLib.inf
 
@@ -355,7 +356,7 @@
   #
   gEmbeddedTokenSpaceGuid.PcdAndroidFastbootUsbVendorId|0x18d1
   gEmbeddedTokenSpaceGuid.PcdAndroidFastbootUsbProductId|0xd00d
-  gHiKey960TokenSpaceGuid.PcdAndroidFastbootNvmDevicePath|L"VenHw(D3987D4B-971A-435F-8CAF-4967EB627241)/Uart(115200,8,N,1)/VenMsg(7d916d80-5bb1-458c-a48f-e25f-dd51ef94)/UFS(0,3)/HD(4,GPT,00354BCD-BBCB-4CB3-B5AE-CDEFCB5DAC43,0x2400000,0x200000)"
+  gHiKey960TokenSpaceGuid.PcdAndroidFastbootNvmDevicePath|L"VenHw(D3987D4B-971A-435F-8CAF-4967EB627241)/Uart(115200,8,N,1)/VenMsg(7d916d80-5bb1-458c-a48f-e25f-dd51ef94)/UFS(0,3)"
   # Flash limit 128M/time, for memory concern
   gHiKey960TokenSpaceGuid.PcdArmFastbootFlashLimit|"134217728"
 
@@ -457,10 +458,11 @@
   #
   # Ufs
   #
+  MdeModulePkg/Bus/Pci/NonDiscoverablePciDeviceDxe/NonDiscoverablePciDeviceDxe.inf
+  OpenPlatformPkg/Drivers/Block/DwUfsHcDxe/DwUfsHcDxe.inf
+  MdeModulePkg/Bus/Ufs/UfsPassThruDxe/UfsPassThruDxe.inf
   MdeModulePkg/Bus/Scsi/ScsiBusDxe/ScsiBusDxe.inf
   MdeModulePkg/Bus/Scsi/ScsiDiskDxe/ScsiDiskDxe.inf
-  MdeModulePkg/Bus/Ufs/UfsPassThruDxe/UfsPassThruDxe.inf
-  OpenPlatformPkg/Drivers/Block/DwUfsHcDxe/DwUfsHcDxe.inf
 
   #
   # USB Peripheral Support
