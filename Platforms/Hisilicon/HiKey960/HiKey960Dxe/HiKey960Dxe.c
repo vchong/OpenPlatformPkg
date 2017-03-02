@@ -20,11 +20,15 @@
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
 #include <Library/MemoryAllocationLib.h>
+#include <Library/NonDiscoverableDeviceRegistrationLib.h>
 #include <Library/IoLib.h>
+#include <Library/PcdLib.h>
 #include <Library/PrintLib.h>
 #include <Library/TimerLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiRuntimeServicesTableLib.h>
+
+#include <Protocol/NonDiscoverableDevice.h>
 
 #define ADC_ADCIN0                       0
 #define ADC_ADCIN1                       1
@@ -335,6 +339,17 @@ HiKey960EntryPoint (
                   &gEfiEndOfDxeEventGroupGuid,
                   &EndOfDxeEvent
                   );
+
+  // RegisterNonDicoverableMmioDevice
+  Status = RegisterNonDiscoverableMmioDevice (
+             NonDiscoverableDeviceTypeUfs,
+             NonDiscoverableDeviceDmaTypeNonCoherent,
+             NULL,
+             NULL,
+             1,
+             FixedPcdGet32 (PcdDwUfsHcDxeBaseAddress),
+             SIZE_4KB
+             );
 
   return Status;
 }

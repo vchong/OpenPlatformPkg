@@ -24,12 +24,14 @@
 [Packages]
   MdePkg/MdePkg.dec
   MdeModulePkg/MdeModulePkg.dec
+  OpenPlatformPkg/Drivers/Block/DwUfsHcDxe/DwUfsHcDxe.dec
 
 [LibraryClasses]
   BaseMemoryLib
   DebugLib
   DxeServicesTableLib
   IoLib
+  NonDiscoverableDeviceRegistrationLib
   PcdLib
   PrintLib
   TimerLib
@@ -41,6 +43,9 @@
 [Guids]
   gEfiEndOfDxeEventGroupGuid
   gEfiFileInfoGuid
+
+[Pcd]
+  gDwUfsHcDxeTokenSpaceGuid.PcdDwUfsHcDxeBaseAddress
 
 [Depex]
   TRUE
