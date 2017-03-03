@@ -24,6 +24,8 @@
 #include <Protocol/EraseBlock.h>
 #include <Protocol/SimpleTextOut.h>
 
+#include <Protocol/DevicePathToText.h>
+
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
@@ -53,6 +55,8 @@
 #define HIKEY_ERASE_BLOCKS        (HIKEY_ERASE_SIZE / EFI_PAGE_SIZE)
 
 #define BOOTIMG_KERNEL_ARGS_SIZE  1024
+
+#define GPT_BLOCK_SIZE            512
 
 typedef struct _FASTBOOT_PARTITION_LIST {
   LIST_ENTRY  Link;
@@ -98,12 +102,11 @@ ReadPartitionEntries (
   OUT EFI_PARTITION_ENTRY  **PartitionEntries
   )
 {
-  UINTN                       EntrySize;
-  UINTN                       NumEntries;
-  UINTN                       BufferSize;
   UINT32                      MediaId;
   EFI_PARTITION_TABLE_HEADER *GptHeader;
   EFI_STATUS                  Status;
+  VOID                       *Buffer;
+  UINTN                       PageSize;
 
   MediaId = BlockIo->Media->MediaId;
 
@@ -111,15 +114,17 @@ ReadPartitionEntries (
   // Read size of Partition entry and number of entries from GPT header
   //
 
-  GptHeader = AllocatePool (BlockIo->Media->BlockSize);
-  if (GptHeader == NULL) {
+  PageSize = EFI_SIZE_TO_PAGES (34 * GPT_BLOCK_SIZE);
+  Buffer = AllocatePages (PageSize);
+  if (Buffer == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
 
-  Status = BlockIo->ReadBlocks (BlockIo, MediaId, 1, BlockIo->Media->BlockSize, (VOID *) GptHeader);
+  Status = BlockIo->ReadBlocks (BlockIo, MediaId, 0, PageSize * EFI_PAGE_SIZE, Buffer);
   if (EFI_ERROR (Status)) {
     return Status;
   }
+  GptHeader = (EFI_PARTITION_TABLE_HEADER *)(Buffer + GPT_BLOCK_SIZE);
 
   // Check there is a GPT on the media
   if (GptHeader->Header.Signature != EFI_PTAB_HEADER_ID ||
@@ -131,29 +136,43 @@ ReadPartitionEntries (
     return EFI_DEVICE_ERROR;
   }
 
-  EntrySize = GptHeader->SizeOfPartitionEntry;
-  NumEntries = GptHeader->NumberOfPartitionEntries;
-
-  FreePool (GptHeader);
-
-  ASSERT (EntrySize != 0);
-  ASSERT (NumEntries != 0);
-
-  BufferSize = ALIGN_VALUE (EntrySize * NumEntries, BlockIo->Media->BlockSize);
-  *PartitionEntries = AllocatePool (BufferSize);
-  if (PartitionEntries == NULL) {
-    return EFI_OUT_OF_RESOURCES;
-  }
-
-  Status = BlockIo->ReadBlocks (BlockIo, MediaId, 2, BufferSize, (VOID *) *PartitionEntries);
-  if (EFI_ERROR (Status)) {
-    FreePool (PartitionEntries);
-    return Status;
-  }
-
-  return Status;
+  *PartitionEntries = (EFI_PARTITION_ENTRY *)((UINTN)Buffer + (2 * GPT_BLOCK_SIZE));
+  return EFI_SUCCESS;
 }
 
+EFI_STATUS
+HiKey960LocatePtableDevicePath (
+  IN EFI_DEVICE_PATH_PROTOCOL        *Node
+  )
+{
+  UFS_DEVICE_PATH                    *UfsNode;
+  EFI_DEVICE_PATH_PROTOCOL           *NextNode;
+
+  if ((Node->Type == MESSAGING_DEVICE_PATH) &&
+      (Node->SubType == MSG_UFS_DP)) {
+    UfsNode = (UFS_DEVICE_PATH *)Node;
+    // Pun is always 0 and there's enough space in LUN3
+    if ((UfsNode->Pun == 0) && (UfsNode->Lun == 3)) {
+      NextNode = NextDevicePathNode (Node);
+      if (IsDevicePathEndType (NextNode)) {
+        return EFI_SUCCESS;
+      }
+    }
+  }
+  return EFI_INVALID_PARAMETER;
+}
+
+EFI_STATUS
+HiKey960LocateGptDevicePath (
+  IN EFI_DEVICE_PATH_PROTOCOL        *Node
+  )
+{
+  if ((Node->Type == MEDIA_DEVICE_PATH) &&
+      (Node->SubType == MEDIA_HARDDRIVE_DP)) {
+    return EFI_SUCCESS;
+  }
+  return EFI_INVALID_PARAMETER;
+}
 
 /*
   Initialise: Open the Android NVM device and find the partitions on it. Save them in
@@ -263,6 +282,11 @@ HiKey960FastbootPlatformInit (
       // device itself.
       NextNode = NextDevicePathNode (DevicePath);
       if (IsDevicePathEndType (NextNode)) {
+        continue;
+      }
+
+      Status = HiKey960LocatePtableDevicePath (NextNode);
+      if (!EFI_ERROR (Status)) {
         // Create entry
         Entry = AllocatePool (sizeof (FASTBOOT_PARTITION_LIST));
         if (Entry == NULL) {
@@ -274,13 +298,40 @@ HiKey960FastbootPlatformInit (
         // Copy handle and partition name
         Entry->PartitionHandle = AllHandles[LoopIndex];
         StrCpy (Entry->PartitionName, L"ptable");
+DEBUG ((DEBUG_ERROR, "#%a, %d, partition name:%s\n", __func__, __LINE__, Entry->PartitionName));
         InsertTailList (&mPartitionListHead, &Entry->Link);
         continue;
+      } else {
+        NextNode = NextDevicePathNode (NextNode);
+        if (IsDevicePathEndType (NextNode)) {
+          continue;
+        }
+        Status = HiKey960LocateGptDevicePath (NextNode);
+        if (EFI_ERROR (Status)) {
+          continue;
+        }
       }
 
-      // Assert that this device path node represents a partition.
-      ASSERT (NextNode->Type == MEDIA_DEVICE_PATH &&
-              NextNode->SubType == MEDIA_HARDDRIVE_DP);
+      {
+        // We convert back to the text representation of the device Path
+        EFI_DEVICE_PATH_TO_TEXT_PROTOCOL  *DevicePathToTextProtocol;
+        CHAR16                            *DevicePathTxt;
+
+        DevicePathToTextProtocol = NULL;
+        gBS->LocateProtocol(&gEfiDevicePathToTextProtocolGuid, NULL, (VOID **) &DevicePathToTextProtocol);
+        if (DevicePathToTextProtocol != NULL) {
+          DevicePathTxt = DevicePathToTextProtocol->ConvertDevicePathToText (DevicePath, TRUE, TRUE);
+
+          DEBUG((EFI_D_ERROR,"#%d, Device Path '%s'.\n", __LINE__, DevicePathTxt));
+
+          if (DevicePathTxt != NULL) {
+            FreePool (DevicePathTxt);
+          } else {
+            //return EFI_NOT_READY;
+          }
+        }
+      }
+
 
       PartitionNode = (HARDDRIVE_DEVICE_PATH *) NextNode;
 
@@ -315,6 +366,7 @@ HiKey960FastbootPlatformInit (
         PartitionEntries[PartitionNode->PartitionNumber - 1].PartitionName, // Partition numbers start from 1.
         PARTITION_NAME_MAX_LENGTH
         );
+DEBUG ((DEBUG_ERROR, "#%a, %d, partition name:%s\n", __func__, __LINE__, Entry->PartitionName));
       Entry->Lba = PartitionEntries[PartitionNode->PartitionNumber - 1].StartingLBA;
       InsertTailList (&mPartitionListHead, &Entry->Link);
 
@@ -331,7 +383,8 @@ HiKey960FastbootPlatformInit (
   }
 
 Exit:
-  FreePool (PartitionEntries);
+  FreePages ((VOID *)((UINTN)PartitionEntries - (2 * GPT_BLOCK_SIZE)), EFI_SIZE_TO_PAGES (34 * GPT_BLOCK_SIZE));
+  //FreePool (PartitionEntries);
   FreePool (FlashDevicePath);
   FreePool (AllHandles);
   return Status;
@@ -344,6 +397,15 @@ HiKey960FastbootPlatformUnInit (
   )
 {
   FreePartitionList ();
+}
+
+EFI_STATUS
+HiKey960FlashPtable (
+  IN UINTN   Size,
+  IN VOID   *Image
+  )
+{
+  return EFI_SUCCESS;
 }
 
 EFI_STATUS
@@ -367,11 +429,7 @@ HiKey960FastbootPlatformFlashPartition (
   UINTN                    Offset = 0;
   UINT32                   Chunk, EntrySize, EntryOffset;
   UINT32                  *FillVal, TmpCount, FillBuf[1024];
-#else
-  UINT32                   EntrySize, EntryOffset;
 #endif
-  VOID                    *Buffer;
-
 
   AsciiStrToUnicodeStr (PartitionName, PartitionNameUnicode);
 
@@ -387,8 +445,12 @@ HiKey960FastbootPlatformFlashPartition (
    Entry = (FASTBOOT_PARTITION_LIST *) GetNextNode (&mPartitionListHead, &(Entry)->Link);
   }
   if (!PartitionFound) {
+    if (AsciiStrCmp (PartitionName, "ptable") == 0) {
+      return HiKey960FlashPtable (Size, Image);
+    }
     return EFI_NOT_FOUND;
   }
+DEBUG ((DEBUG_ERROR, "#%a, %d, PartitionFound:%d\n", __func__, __LINE__, PartitionFound));
 
   Status = gBS->OpenProtocol (
                   Entry->PartitionHandle,
@@ -518,47 +580,6 @@ HiKey960FastbootPlatformFlashPartition (
   } else {
 #endif
     if (AsciiStrCmp (PartitionName, "ptable") == 0) {
-      Buffer = Image;
-      if (AsciiStrnCmp (Buffer, "ENTRYHDR", 8) != 0) {
-        DEBUG ((DEBUG_ERROR, "unknown ptable image\n"));
-        return EFI_UNSUPPORTED;
-      }
-      Buffer += 8;
-      if (AsciiStrnCmp (Buffer, "primary", 7) != 0) {
-        DEBUG ((DEBUG_ERROR, "unknown ptable image\n"));
-        return EFI_UNSUPPORTED;
-      }
-      Buffer += 8;
-      EntryOffset = *(UINT32 *)Buffer * BlockIo->Media->BlockSize;
-      Buffer += 4;
-      EntrySize = *(UINT32 *)Buffer * BlockIo->Media->BlockSize;
-      if ((EntrySize + 512) > Size) {
-        DEBUG ((DEBUG_ERROR, "Entry size doesn't match\n"));
-        return EFI_UNSUPPORTED;
-      }
-      Buffer = Image + 512;
-      Status = DiskIo->WriteDisk (DiskIo, MediaId, EntryOffset, EntrySize, Buffer);
-      if (EFI_ERROR (Status)) {
-        return Status;
-      }
-
-      Buffer = Image + 16 + 12;
-      if (AsciiStrnCmp (Buffer, "ENTRYHDR", 8) != 0)
-        return Status;
-      Buffer += 8;
-      if (AsciiStrnCmp (Buffer, "second", 6) != 0)
-        return Status;
-      Buffer += 8;
-      EntryOffset = *(UINT32 *)Buffer * BlockIo->Media->BlockSize;
-      Buffer += 4;
-      EntrySize = *(UINT32 *)Buffer * BlockIo->Media->BlockSize;
-      if ((EntrySize + 512) > Size) {
-        DEBUG ((DEBUG_ERROR, "Entry size doesn't match\n"));
-        return EFI_UNSUPPORTED;
-      }
-      Buffer = Image + 512;
-      Status = DiskIo->WriteDisk (DiskIo, MediaId, EntryOffset, EntrySize, Buffer);
-    } else {
       Status = DiskIo->WriteDisk (DiskIo, MediaId, 0, Size, Image);
     }
     if (EFI_ERROR (Status)) {

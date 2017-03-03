@@ -42,6 +42,7 @@
   gEfiDiskIoProtocolGuid
   gEfiSimpleTextOutProtocolGuid
   gEfiEraseBlockProtocolGuid
+  gEfiDevicePathToTextProtocolGuid
 
 [Packages]
   EmbeddedPkg/EmbeddedPkg.dec
