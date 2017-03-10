@@ -56,8 +56,6 @@
 
 #define BOOTIMG_KERNEL_ARGS_SIZE  1024
 
-#define GPT_BLOCK_SIZE            512
-
 typedef struct _FASTBOOT_PARTITION_LIST {
   LIST_ENTRY  Link;
   CHAR16      PartitionName[PARTITION_NAME_MAX_LENGTH];
@@ -107,14 +105,16 @@ ReadPartitionEntries (
   EFI_STATUS                  Status;
   VOID                       *Buffer;
   UINTN                       PageSize;
+  UINTN                       BlockSize;
 
   MediaId = BlockIo->Media->MediaId;
+  BlockSize = BlockIo->Media->BlockSize;
 
   //
   // Read size of Partition entry and number of entries from GPT header
   //
 
-  PageSize = EFI_SIZE_TO_PAGES (34 * GPT_BLOCK_SIZE);
+  PageSize = EFI_SIZE_TO_PAGES (6 * BlockSize);
   Buffer = AllocatePages (PageSize);
   if (Buffer == NULL) {
     return EFI_OUT_OF_RESOURCES;
@@ -124,7 +124,7 @@ ReadPartitionEntries (
   if (EFI_ERROR (Status)) {
     return Status;
   }
-  GptHeader = (EFI_PARTITION_TABLE_HEADER *)(Buffer + GPT_BLOCK_SIZE);
+  GptHeader = (EFI_PARTITION_TABLE_HEADER *)(Buffer + BlockSize);
 
   // Check there is a GPT on the media
   if (GptHeader->Header.Signature != EFI_PTAB_HEADER_ID ||
@@ -136,7 +136,7 @@ ReadPartitionEntries (
     return EFI_DEVICE_ERROR;
   }
 
-  *PartitionEntries = (EFI_PARTITION_ENTRY *)((UINTN)Buffer + (2 * GPT_BLOCK_SIZE));
+  *PartitionEntries = (EFI_PARTITION_ENTRY *)((UINTN)Buffer + (2 * BlockSize));
   return EFI_SUCCESS;
 }
 
@@ -298,6 +298,7 @@ HiKey960FastbootPlatformInit (
         // Copy handle and partition name
         Entry->PartitionHandle = AllHandles[LoopIndex];
         StrCpy (Entry->PartitionName, L"ptable");
+        Entry->Lba = 0;
 DEBUG ((DEBUG_ERROR, "#%a, %d, partition name:%s\n", __func__, __LINE__, Entry->PartitionName));
         InsertTailList (&mPartitionListHead, &Entry->Link);
         continue;
@@ -383,7 +384,7 @@ DEBUG ((DEBUG_ERROR, "#%a, %d, partition name:%s\n", __func__, __LINE__, Entry->
   }
 
 Exit:
-  FreePages ((VOID *)((UINTN)PartitionEntries - (2 * GPT_BLOCK_SIZE)), EFI_SIZE_TO_PAGES (34 * GPT_BLOCK_SIZE));
+  FreePages ((VOID *)((UINTN)PartitionEntries - (2 * 4096)), EFI_SIZE_TO_PAGES (6 * 4096));
   //FreePool (PartitionEntries);
   FreePool (FlashDevicePath);
   FreePool (AllHandles);
@@ -450,7 +451,7 @@ HiKey960FastbootPlatformFlashPartition (
     }
     return EFI_NOT_FOUND;
   }
-DEBUG ((DEBUG_ERROR, "#%a, %d, PartitionFound:%d\n", __func__, __LINE__, PartitionFound));
+DEBUG ((DEBUG_ERROR, "#%a, %d, PartitionFound:%d, Lba:0x%x\n", __func__, __LINE__, PartitionFound, Entry->Lba));
 
   Status = gBS->OpenProtocol (
                   Entry->PartitionHandle,
@@ -579,9 +580,7 @@ DEBUG ((DEBUG_ERROR, "#%a, %d, PartitionFound:%d\n", __func__, __LINE__, Partiti
     mTextOut->OutputString(mTextOut, OutputString);
   } else {
 #endif
-    if (AsciiStrCmp (PartitionName, "ptable") == 0) {
-      Status = DiskIo->WriteDisk (DiskIo, MediaId, 0, Size, Image);
-    }
+    Status = DiskIo->WriteDisk (DiskIo, MediaId, 0, Size, Image);
     if (EFI_ERROR (Status)) {
       return Status;
     }
@@ -716,7 +715,7 @@ HiKey960FastbootPlatformGetKernelArgs (
   }
   UnicodeSPrint (
     CommandLineArgs, BOOTIMG_KERNEL_ARGS_SIZE,
-    L"earlycon=pl011,0xFDF05000"
+    L"earlycon=pl011,0xFDF05000 efi=debug"
     );
   return CommandLineArgs;
 }
