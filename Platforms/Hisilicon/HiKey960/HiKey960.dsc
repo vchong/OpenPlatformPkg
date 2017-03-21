@@ -334,10 +334,6 @@
   gEfiMdeModulePkgTokenSpaceGuid.PcdResetOnMemoryTypeInformationChange|FALSE
 
 
-  #
-  # ARM Architectural Timer Frequency
-  #
-  gArmTokenSpaceGuid.PcdArmArchTimerFreqInHz|1920000
   gEmbeddedTokenSpaceGuid.PcdMetronomeTickPeriod|1000
 
   #
@@ -363,7 +359,7 @@
   #
   # Android Loader
   #
-  gEmbeddedTokenSpaceGuid.PcdAndroidBootDevicePath|L"VenHw(D3987D4B-971A-435F-8CAF-4967EB627241)/Uart(115200,8,N,1)/VenMsg(7D916D80-5BB1-458C-A48F-E25FDD51EF94)/UFS(0x0,0x3)/HD(7,GPT,5C0F213C-17E1-4149-88C8-8B50FB4EC70E,0x16600000,0x4000000)"
+  gEmbeddedTokenSpaceGuid.PcdAndroidBootDevicePath|L"VenHw(0D51905B-B77E-452A-A2C0-ECA0CC8D514A,00003BFF0000000000)/UFS(0x0,0x3)/HD(7,GPT,61B94129-C1F2-4601-99EA-A1F518E1B082,0x11400,0x4000)"
 
 ################################################################################
 #
