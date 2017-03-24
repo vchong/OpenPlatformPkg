@@ -72,7 +72,6 @@ ArmPlatformGetVirtualMemoryMap (
   ResourceAttributes = (
     EFI_RESOURCE_ATTRIBUTE_PRESENT |
     EFI_RESOURCE_ATTRIBUTE_INITIALIZED |
-    EFI_RESOURCE_ATTRIBUTE_UNCACHEABLE |
     EFI_RESOURCE_ATTRIBUTE_WRITE_COMBINEABLE |
     EFI_RESOURCE_ATTRIBUTE_WRITE_THROUGH_CACHEABLE |
     EFI_RESOURCE_ATTRIBUTE_WRITE_BACK_CACHEABLE |
@@ -129,11 +128,11 @@ ArmPlatformGetVirtualMemoryMap (
   }
 #endif
 
+#if 0
   // Declared the additional memory
   ResourceAttributes =
     EFI_RESOURCE_ATTRIBUTE_PRESENT |
     EFI_RESOURCE_ATTRIBUTE_INITIALIZED |
-    EFI_RESOURCE_ATTRIBUTE_UNCACHEABLE |
     EFI_RESOURCE_ATTRIBUTE_WRITE_COMBINEABLE |
     EFI_RESOURCE_ATTRIBUTE_WRITE_THROUGH_CACHEABLE |
     EFI_RESOURCE_ATTRIBUTE_WRITE_BACK_CACHEABLE |
@@ -144,6 +143,7 @@ ArmPlatformGetVirtualMemoryMap (
     ResourceAttributes,
     HIKEY960_EXTRA_SYSTEM_MEMORY_BASE,
     HIKEY960_EXTRA_SYSTEM_MEMORY_SIZE);
+#endif
 
   ASSERT (VirtualMemoryMap != NULL);
 
@@ -174,11 +174,13 @@ ArmPlatformGetVirtualMemoryMap (
   VirtualMemoryTable[Index].Length          = HI3660_PERIPH_SZ;
   VirtualMemoryTable[Index].Attributes      = ARM_MEMORY_REGION_ATTRIBUTE_DEVICE;
 
+#if 0
   // DDR - the second 0.5GB section
   VirtualMemoryTable[++Index].PhysicalBase = HIKEY960_EXTRA_SYSTEM_MEMORY_BASE;
   VirtualMemoryTable[Index].VirtualBase    = HIKEY960_EXTRA_SYSTEM_MEMORY_BASE;
   VirtualMemoryTable[Index].Length         = HIKEY960_EXTRA_SYSTEM_MEMORY_SIZE;
   VirtualMemoryTable[Index].Attributes     = CacheAttributes;
+#endif
 
   // End of Table
   VirtualMemoryTable[++Index].PhysicalBase  = 0;
