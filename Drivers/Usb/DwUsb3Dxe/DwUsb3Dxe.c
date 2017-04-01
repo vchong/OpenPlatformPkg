@@ -1758,7 +1758,7 @@ DwUsb3DoSetConfig (
         ASSERT (gRxBuf != NULL);
         InvalidateDataCacheRange (gRxBuf, DATA_SIZE);
         req->bufdma = (UINT64 *)gRxBuf;
-        req->length = 512;
+        req->length = DATA_SIZE;
         DwUsb3EndPointXStartTransfer (pcd, ep);
       }
     } else {
@@ -2109,7 +2109,7 @@ DwUsb3EndPointcompleteRequest (
       ASSERT (gRxBuf != NULL);
       InvalidateDataCacheRange (gRxBuf, DATA_SIZE);
       req->bufdma = (UINT64 *)gRxBuf;
-      req->length = 512;
+      req->length = DATA_SIZE;
       DwUsb3EndPointXStartTransfer (pcd, ep);
     }
   }
