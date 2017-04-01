@@ -278,7 +278,7 @@
   gEmbeddedTokenSpaceGuid.PcdEmbeddedDefaultTextColor|0x07
   gEmbeddedTokenSpaceGuid.PcdEmbeddedMemVariableStoreSize|0x10000
 
-  gArmPlatformTokenSpaceGuid.PcdFirmwareVendor|"hikey960"
+  gArmPlatformTokenSpaceGuid.PcdFirmwareVendor|"Linaro"
   gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareVersionString|L"Alpha"
   gEmbeddedTokenSpaceGuid.PcdEmbeddedPrompt|"HiKey960"
 
@@ -286,7 +286,7 @@
   gArmTokenSpaceGuid.PcdSystemMemoryBase|0x00000000
   gArmTokenSpaceGuid.PcdSystemMemorySize|0xE0000000
 
-  # HiKey Dual-Cluster profile
+  # HiKey960 Dual-Cluster profile
   gArmPlatformTokenSpaceGuid.PcdCoreCount|8
   gArmPlatformTokenSpaceGuid.PcdClusterCount|2
 
