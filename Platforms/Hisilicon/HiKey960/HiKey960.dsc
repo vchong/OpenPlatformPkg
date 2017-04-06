@@ -282,9 +282,9 @@
   gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareVersionString|L"Alpha"
   gEmbeddedTokenSpaceGuid.PcdEmbeddedPrompt|"HiKey960"
 
-  # System Memory (3.5GB). Totally 4GB memory.
+  # System Memory (3GB)
   gArmTokenSpaceGuid.PcdSystemMemoryBase|0x00000000
-  gArmTokenSpaceGuid.PcdSystemMemorySize|0xE0000000
+  gArmTokenSpaceGuid.PcdSystemMemorySize|0xC0000000
 
   # HiKey960 Dual-Cluster profile
   gArmPlatformTokenSpaceGuid.PcdCoreCount|8
