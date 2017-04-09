@@ -104,7 +104,7 @@ ReadPartitionEntries (
   EFI_PARTITION_TABLE_HEADER *GptHeader;
   EFI_STATUS                  Status;
   VOID                       *Buffer;
-  UINTN                       PageSize;
+  UINTN                       PageCount;
   UINTN                       BlockSize;
 
   MediaId = BlockIo->Media->MediaId;
@@ -114,13 +114,13 @@ ReadPartitionEntries (
   // Read size of Partition entry and number of entries from GPT header
   //
 
-  PageSize = EFI_SIZE_TO_PAGES (6 * BlockSize);
-  Buffer = AllocatePages (PageSize);
+  PageCount = EFI_SIZE_TO_PAGES (6 * BlockSize);
+  Buffer = AllocatePages (PageCount);
   if (Buffer == NULL) {
     return EFI_OUT_OF_RESOURCES;
   }
 
-  Status = BlockIo->ReadBlocks (BlockIo, MediaId, 0, PageSize * EFI_PAGE_SIZE, Buffer);
+  Status = BlockIo->ReadBlocks (BlockIo, MediaId, 0, PageCount * EFI_PAGE_SIZE, Buffer);
   if (EFI_ERROR (Status)) {
     return Status;
   }
@@ -141,47 +141,7 @@ ReadPartitionEntries (
 }
 
 EFI_STATUS
-HiKey960LocatePtableDevicePath (
-  IN EFI_DEVICE_PATH_PROTOCOL        *Node
-  )
-{
-  UFS_DEVICE_PATH                    *UfsNode;
-  EFI_DEVICE_PATH_PROTOCOL           *NextNode;
-
-  if ((Node->Type == MESSAGING_DEVICE_PATH) &&
-      (Node->SubType == MSG_UFS_DP)) {
-    UfsNode = (UFS_DEVICE_PATH *)Node;
-    // Pun is always 0 and there's enough space in LUN3
-    if ((UfsNode->Pun == 0) && (UfsNode->Lun == 3)) {
-      NextNode = NextDevicePathNode (Node);
-      if (IsDevicePathEndType (NextNode)) {
-        return EFI_SUCCESS;
-      }
-    }
-  }
-  return EFI_INVALID_PARAMETER;
-}
-
-EFI_STATUS
-HiKey960LocateGptDevicePath (
-  IN EFI_DEVICE_PATH_PROTOCOL        *Node
-  )
-{
-  if ((Node->Type == MEDIA_DEVICE_PATH) &&
-      (Node->SubType == MEDIA_HARDDRIVE_DP)) {
-    return EFI_SUCCESS;
-  }
-  return EFI_INVALID_PARAMETER;
-}
-
-/*
-  Initialise: Open the Android NVM device and find the partitions on it. Save them in
-  a list along with the "PartitionName" fields for their GPT entries.
-  We will use these partition names as the key in
-  HiKey960FastbootPlatformFlashPartition.
-*/
-EFI_STATUS
-HiKey960FastbootPlatformInit (
+LoadPtable (
   VOID
   )
 {
@@ -278,73 +238,21 @@ HiKey960FastbootPlatformInit (
 
     // Check if it is a sub-device of the flash device
     if (!CompareMem (DevicePath, FlashDevicePath, FLASH_DEVICE_PATH_SIZE (FlashDevicePath))) {
-      // Device path starts with path of flash device. Check it isn't the flash
-      // device itself.
+      // Device path is VenHw()/UFS()/HD(). Skip the first two level.
       NextNode = NextDevicePathNode (DevicePath);
       if (IsDevicePathEndType (NextNode)) {
         continue;
       }
-
-      Status = HiKey960LocatePtableDevicePath (NextNode);
-      if (!EFI_ERROR (Status)) {
-        // Create entry
-        Entry = AllocatePool (sizeof (FASTBOOT_PARTITION_LIST));
-        if (Entry == NULL) {
-          Status = EFI_OUT_OF_RESOURCES;
-          FreePartitionList ();
-          goto Exit;
-        }
-
-        // Copy handle and partition name
-        Entry->PartitionHandle = AllHandles[LoopIndex];
-        StrCpy (Entry->PartitionName, L"ptable");
-        Entry->Lba = 0;
-DEBUG ((DEBUG_ERROR, "#%a, %d, partition name:%s\n", __func__, __LINE__, Entry->PartitionName));
-        InsertTailList (&mPartitionListHead, &Entry->Link);
+      NextNode = NextDevicePathNode (NextNode);
+      if (IsDevicePathEndType (NextNode)) {
         continue;
-      } else {
-        NextNode = NextDevicePathNode (NextNode);
-        if (IsDevicePathEndType (NextNode)) {
-          continue;
-        }
-        Status = HiKey960LocateGptDevicePath (NextNode);
-        if (EFI_ERROR (Status)) {
-          continue;
-        }
       }
-
-      {
-        // We convert back to the text representation of the device Path
-        EFI_DEVICE_PATH_TO_TEXT_PROTOCOL  *DevicePathToTextProtocol;
-        CHAR16                            *DevicePathTxt;
-
-        DevicePathToTextProtocol = NULL;
-        gBS->LocateProtocol(&gEfiDevicePathToTextProtocolGuid, NULL, (VOID **) &DevicePathToTextProtocol);
-        if (DevicePathToTextProtocol != NULL) {
-          DevicePathTxt = DevicePathToTextProtocol->ConvertDevicePathToText (DevicePath, TRUE, TRUE);
-
-          DEBUG((EFI_D_ERROR,"#%d, Device Path '%s'.\n", __LINE__, DevicePathTxt));
-
-          if (DevicePathTxt != NULL) {
-            FreePool (DevicePathTxt);
-          } else {
-            //return EFI_NOT_READY;
-          }
-        }
-      }
-
 
       PartitionNode = (HARDDRIVE_DEVICE_PATH *) NextNode;
 
-      // Assert that the partition type is GPT. ReadPartitionEntries checks for
-      // presence of a GPT, so we should never find MBR partitions.
-      // ("MBRType" is a misnomer - this field is actually called "Partition
-      //  Format")
-      ASSERT (PartitionNode->MBRType == MBR_TYPE_EFI_PARTITION_TABLE_HEADER);
-
       // The firmware may install a handle for "partition 0", representing the
       // whole device. Ignore it.
-      if (PartitionNode->PartitionNumber == 0) {
+      if ((PartitionNode->PartitionNumber == 0) || (PartitionNode->PartitionNumber > 128)) {
         continue;
       }
 
@@ -367,7 +275,6 @@ DEBUG ((DEBUG_ERROR, "#%a, %d, partition name:%s\n", __func__, __LINE__, Entry->
         PartitionEntries[PartitionNode->PartitionNumber - 1].PartitionName, // Partition numbers start from 1.
         PARTITION_NAME_MAX_LENGTH
         );
-DEBUG ((DEBUG_ERROR, "#%a, %d, partition name:%s\n", __func__, __LINE__, Entry->PartitionName));
       Entry->Lba = PartitionEntries[PartitionNode->PartitionNumber - 1].StartingLBA;
       InsertTailList (&mPartitionListHead, &Entry->Link);
 
@@ -379,17 +286,32 @@ DEBUG ((DEBUG_ERROR, "#%a, %d, partition name:%s\n", __func__, __LINE__, Entry->
           "You won't be able to flash it with Fastboot.\n",
           PartitionNode->PartitionNumber
           ));
+        Status = EFI_INVALID_PARAMETER;
+        FreePartitionList ();
+        goto Exit;
       }
     }
   }
 
 Exit:
-  FreePages ((VOID *)((UINTN)PartitionEntries - (2 * 4096)), EFI_SIZE_TO_PAGES (6 * 4096));
-  //FreePool (PartitionEntries);
+  FreePages ((VOID *)((UINTN)PartitionEntries - (2 * EFI_PAGE_SIZE)), EFI_SIZE_TO_PAGES (6 * EFI_PAGE_SIZE));
   FreePool (FlashDevicePath);
   FreePool (AllHandles);
   return Status;
+}
 
+/*
+  Initialise: Open the Android NVM device and find the partitions on it. Save them in
+  a list along with the "PartitionName" fields for their GPT entries.
+  We will use these partition names as the key in
+  HiKey960FastbootPlatformFlashPartition.
+*/
+EFI_STATUS
+HiKey960FastbootPlatformInit (
+  VOID
+  )
+{
+  return LoadPtable ();
 }
 
 VOID
@@ -406,7 +328,54 @@ HiKey960FlashPtable (
   IN VOID   *Image
   )
 {
-  return EFI_SUCCESS;
+  EFI_STATUS               Status;
+  //EFI_BLOCK_IO_PROTOCOL   *BlockIo;
+  EFI_HANDLE                          FlashHandle;
+  EFI_DEVICE_PATH_PROTOCOL           *FlashDevicePath;
+  EFI_DEVICE_PATH_PROTOCOL           *FlashDevicePathDup;
+  EFI_BLOCK_IO_PROTOCOL              *FlashBlockIo;
+
+  FlashDevicePath = ConvertTextToDevicePath ((CHAR16*)FixedPcdGetPtr (PcdAndroidFastbootNvmDevicePath));
+
+  //
+  // Open the Disk IO protocol on the flash device - this will be used to read
+  // partition names out of the GPT entries
+  //
+  // Create another device path pointer because LocateDevicePath will modify it.
+  FlashDevicePathDup = FlashDevicePath;
+  Status = gBS->LocateDevicePath (&gEfiBlockIoProtocolGuid, &FlashDevicePathDup, &FlashHandle);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Warning: Couldn't locate Android NVM device (status: %r)\n", Status));
+    // Failing to locate partitions should not prevent to do other Android FastBoot actions
+    return EFI_SUCCESS;
+  }
+
+  Status = gBS->OpenProtocol (
+                  FlashHandle,
+                  &gEfiBlockIoProtocolGuid,
+                  (VOID **) &FlashBlockIo,
+                  gImageHandle,
+                  NULL,
+                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Fastboot platform: Couldn't open Android NVM device (status: %r)\n", Status));
+    return EFI_DEVICE_ERROR;
+  }
+  Status = FlashBlockIo->WriteBlocks (
+                           FlashBlockIo,
+                           FlashBlockIo->Media->MediaId,
+                           0,
+                           Size,
+                           Image
+                           );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Failed to write (status:%r)\n", Status));
+    return Status;
+  }
+  FreePartitionList ();
+  Status = LoadPtable ();
+  return Status;
 }
 
 EFI_STATUS
@@ -432,8 +401,11 @@ HiKey960FastbootPlatformFlashPartition (
   UINT32                  *FillVal, TmpCount, FillBuf[1024];
 #endif
 
-  AsciiStrToUnicodeStr (PartitionName, PartitionNameUnicode);
+  if (AsciiStrCmp (PartitionName, "ptable") == 0) {
+    return HiKey960FlashPtable (Size, Image);
+  }
 
+  AsciiStrToUnicodeStr (PartitionName, PartitionNameUnicode);
   PartitionFound = FALSE;
   Entry = (FASTBOOT_PARTITION_LIST *) GetFirstNode (&(mPartitionListHead));
   while (!IsNull (&mPartitionListHead, &Entry->Link)) {
@@ -446,12 +418,8 @@ HiKey960FastbootPlatformFlashPartition (
    Entry = (FASTBOOT_PARTITION_LIST *) GetNextNode (&mPartitionListHead, &(Entry)->Link);
   }
   if (!PartitionFound) {
-    if (AsciiStrCmp (PartitionName, "ptable") == 0) {
-      return HiKey960FlashPtable (Size, Image);
-    }
     return EFI_NOT_FOUND;
   }
-DEBUG ((DEBUG_ERROR, "#%a, %d, PartitionFound:%d, Lba:0x%x\n", __func__, __LINE__, PartitionFound, Entry->Lba));
 
   Status = gBS->OpenProtocol (
                   Entry->PartitionHandle,
@@ -582,6 +550,7 @@ DEBUG ((DEBUG_ERROR, "#%a, %d, PartitionFound:%d, Lba:0x%x\n", __func__, __LINE_
 #endif
     Status = DiskIo->WriteDisk (DiskIo, MediaId, 0, Size, Image);
     if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "Failed to write %d bytes into 0x%x, Status:%r\n", Size, Image, Status));
       return Status;
     }
 #ifdef SPARSE_HEADER
