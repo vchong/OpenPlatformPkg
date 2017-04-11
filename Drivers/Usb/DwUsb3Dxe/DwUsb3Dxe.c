@@ -43,7 +43,7 @@
 
 #define USB_TYPE_LENGTH              16
 #define USB_BLOCK_HIGH_SPEED_SIZE    512
-#define DATA_SIZE                    32768
+#define DATA_SIZE                    2048
 #define CMD_SIZE                     512
 #define MATCH_CMD_LITERAL(Cmd, Buf) !AsciiStrnCmp (Cmd, Buf, sizeof (Cmd) - 1)
 
@@ -1758,7 +1758,7 @@ DwUsb3DoSetConfig (
         ASSERT (gRxBuf != NULL);
         InvalidateDataCacheRange (gRxBuf, DATA_SIZE);
         req->bufdma = (UINT64 *)gRxBuf;
-        req->length = 512;
+        req->length = DATA_SIZE;
         DwUsb3EndPointXStartTransfer (pcd, ep);
       }
     } else {
@@ -2109,7 +2109,7 @@ DwUsb3EndPointcompleteRequest (
       ASSERT (gRxBuf != NULL);
       InvalidateDataCacheRange (gRxBuf, DATA_SIZE);
       req->bufdma = (UINT64 *)gRxBuf;
-      req->length = 512;
+      req->length = DATA_SIZE;
       DwUsb3EndPointXStartTransfer (pcd, ep);
     }
   }
