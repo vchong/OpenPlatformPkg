@@ -49,7 +49,7 @@
 
 // The time between interrupt polls, in units of 100 nanoseconds
 // 10 Microseconds
-#define DW_INTERRUPT_POLL_PERIOD     10000
+#define DW_INTERRUPT_POLL_PERIOD     100
 
 #define DWUSB3_EVENT_BUF_SIZE        256
 
