@@ -282,6 +282,9 @@
   gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareVersionString|L"Alpha"
   gEmbeddedTokenSpaceGuid.PcdEmbeddedPrompt|"HiKey960"
 
+  # TimerPeriod
+  gEmbeddedTokenSpaceGuid.PcdTimerPeriod|1000
+
   # System Memory (3GB)
   gArmTokenSpaceGuid.PcdSystemMemoryBase|0x00000000
   gArmTokenSpaceGuid.PcdSystemMemorySize|0xC0000000
