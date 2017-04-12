@@ -305,13 +305,14 @@
   #
 
   ## PL011 - Serial Terminal
-  gEfiMdeModulePkgTokenSpaceGuid.PcdSerialRegisterBase|0xFDF05000
+  DEFINE SERIAL_BASE = 0xFFF32000
+  gEfiMdeModulePkgTokenSpaceGuid.PcdSerialRegisterBase|$(SERIAL_BASE)
   gEfiMdePkgTokenSpaceGuid.PcdUartDefaultBaudRate|115200
   gArmPlatformTokenSpaceGuid.PL011UartInteger|10
   gArmPlatformTokenSpaceGuid.PL011UartFractional|26
 
   ## PL011 - Serial Debug UART
-  gArmPlatformTokenSpaceGuid.PcdSerialDbgRegisterBase|0xFDF05000
+  gArmPlatformTokenSpaceGuid.PcdSerialDbgRegisterBase|$(SERIAL_BASE)
   gArmPlatformTokenSpaceGuid.PcdSerialDbgUartClkInHz|19200000
   gArmPlatformTokenSpaceGuid.PcdSerialDbgUartBaudRate|115200
 
