@@ -1756,7 +1756,7 @@ DwUsb3DoSetConfig (
         // AndroidFast App will free the rx buffer.
         gRxBuf = AllocatePool (DATA_SIZE);
         ASSERT (gRxBuf != NULL);
-        InvalidateDataCacheRange (gRxBuf, DATA_SIZE);
+        WriteBackDataCacheRange (gRxBuf, DATA_SIZE);
         req->bufdma = (UINT64 *)gRxBuf;
         req->length = DATA_SIZE;
         DwUsb3EndPointXStartTransfer (pcd, ep);
@@ -2051,6 +2051,7 @@ DwUsb3RequestDone (
   } else {
     if (!ep->is_in) {
       ASSERT (req->actual <= req->length);
+      InvalidateDataCacheRange (gRxBuf, req->actual);
       mDataReceivedCallback (req->actual, gRxBuf);
     }
   }
@@ -2107,7 +2108,7 @@ DwUsb3EndPointcompleteRequest (
       ZeroMem (req, sizeof (usb3_pcd_req_t));
       gRxBuf = AllocatePool (DATA_SIZE);
       ASSERT (gRxBuf != NULL);
-      InvalidateDataCacheRange (gRxBuf, DATA_SIZE);
+      WriteBackDataCacheRange (gRxBuf, DATA_SIZE);
       req->bufdma = (UINT64 *)gRxBuf;
       req->length = DATA_SIZE;
       DwUsb3EndPointXStartTransfer (pcd, ep);
