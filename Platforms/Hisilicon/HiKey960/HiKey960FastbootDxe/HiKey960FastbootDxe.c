@@ -54,8 +54,6 @@
 #define HIKEY_ERASE_SIZE          (16 * 1024 * 1024)
 #define HIKEY_ERASE_BLOCKS        (HIKEY_ERASE_SIZE / EFI_PAGE_SIZE)
 
-#define BOOTIMG_KERNEL_ARGS_SIZE  1024
-
 typedef struct _FASTBOOT_PARTITION_LIST {
   LIST_ENTRY  Link;
   CHAR16      PartitionName[PARTITION_NAME_MAX_LENGTH];
@@ -671,32 +669,13 @@ HiKey960FastbootPlatformOemCommand (
   }
 }
 
-CHAR16 *
-HiKey960FastbootPlatformGetKernelArgs (
-  VOID
-  )
-{
-  CHAR16                             *CommandLineArgs;
-
-  CommandLineArgs = AllocateZeroPool (BOOTIMG_KERNEL_ARGS_SIZE);
-  if (CommandLineArgs == NULL) {
-    return NULL;
-  }
-  UnicodeSPrint (
-    CommandLineArgs, BOOTIMG_KERNEL_ARGS_SIZE,
-    L"earlycon=pl011,0xFDF05000 efi=debug"
-    );
-  return CommandLineArgs;
-}
-
 FASTBOOT_PLATFORM_PROTOCOL mPlatformProtocol = {
   HiKey960FastbootPlatformInit,
   HiKey960FastbootPlatformUnInit,
   HiKey960FastbootPlatformFlashPartition,
   HiKey960FastbootPlatformErasePartition,
   HiKey960FastbootPlatformGetVar,
-  HiKey960FastbootPlatformOemCommand,
-  HiKey960FastbootPlatformGetKernelArgs
+  HiKey960FastbootPlatformOemCommand
 };
 
 EFI_STATUS
