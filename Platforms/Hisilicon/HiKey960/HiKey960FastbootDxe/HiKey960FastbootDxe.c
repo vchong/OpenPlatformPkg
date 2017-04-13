@@ -669,13 +669,85 @@ HiKey960FastbootPlatformOemCommand (
   }
 }
 
+EFI_STATUS
+HiKey960FastbootPlatformFlashPartitionEx (
+  IN CHAR8  *PartitionName,
+  IN UINTN   Offset,
+  IN UINTN   Size,
+  IN VOID   *Image
+  )
+{
+  EFI_STATUS               Status;
+  EFI_BLOCK_IO_PROTOCOL   *BlockIo;
+  EFI_DISK_IO_PROTOCOL    *DiskIo;
+  UINT32                   MediaId;
+  UINTN                    PartitionSize;
+  FASTBOOT_PARTITION_LIST *Entry;
+  CHAR16                   PartitionNameUnicode[60];
+  BOOLEAN                  PartitionFound;
+
+  AsciiStrToUnicodeStr (PartitionName, PartitionNameUnicode);
+  PartitionFound = FALSE;
+  Entry = (FASTBOOT_PARTITION_LIST *) GetFirstNode (&(mPartitionListHead));
+  while (!IsNull (&mPartitionListHead, &Entry->Link)) {
+    // Search the partition list for the partition named by PartitionName
+    if (StrCmp (Entry->PartitionName, PartitionNameUnicode) == 0) {
+      PartitionFound = TRUE;
+      break;
+    }
+
+   Entry = (FASTBOOT_PARTITION_LIST *) GetNextNode (&mPartitionListHead, &(Entry)->Link);
+  }
+  if (!PartitionFound) {
+    return EFI_NOT_FOUND;
+  }
+
+  Status = gBS->OpenProtocol (
+                  Entry->PartitionHandle,
+                  &gEfiBlockIoProtocolGuid,
+                  (VOID **) &BlockIo,
+                  gImageHandle,
+                  NULL,
+                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Fastboot platform: couldn't open Block IO for flash: %r\n", Status));
+    return EFI_NOT_FOUND;
+  }
+
+  // Check image will fit on device
+  PartitionSize = (BlockIo->Media->LastBlock + 1) * BlockIo->Media->BlockSize;
+  if (PartitionSize < Size) {
+    DEBUG ((DEBUG_ERROR, "Partition not big enough.\n"));
+    DEBUG ((DEBUG_ERROR, "Partition Size:\t%ld\nImage Size:\t%ld\n", PartitionSize, Size));
+
+    return EFI_VOLUME_FULL;
+  }
+
+  MediaId = BlockIo->Media->MediaId;
+
+  Status = gBS->OpenProtocol (
+                  Entry->PartitionHandle,
+                  &gEfiDiskIoProtocolGuid,
+                  (VOID **) &DiskIo,
+                  gImageHandle,
+                  NULL,
+                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
+                  );
+  ASSERT_EFI_ERROR (Status);
+
+  Status = DiskIo->WriteDisk (DiskIo, MediaId, Offset, Size, Image);
+  return Status;
+}
+
 FASTBOOT_PLATFORM_PROTOCOL mPlatformProtocol = {
   HiKey960FastbootPlatformInit,
   HiKey960FastbootPlatformUnInit,
   HiKey960FastbootPlatformFlashPartition,
   HiKey960FastbootPlatformErasePartition,
   HiKey960FastbootPlatformGetVar,
-  HiKey960FastbootPlatformOemCommand
+  HiKey960FastbootPlatformOemCommand,
+  HiKey960FastbootPlatformFlashPartitionEx
 };
 
 EFI_STATUS
