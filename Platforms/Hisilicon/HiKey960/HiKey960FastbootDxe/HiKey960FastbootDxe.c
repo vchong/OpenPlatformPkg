@@ -58,11 +58,12 @@ typedef struct _FASTBOOT_PARTITION_LIST {
   LIST_ENTRY  Link;
   CHAR16      PartitionName[PARTITION_NAME_MAX_LENGTH];
   EFI_HANDLE  PartitionHandle;
-  EFI_LBA     Lba;
+  EFI_LBA     StartingLBA;
+  EFI_LBA     EndingLBA;
 } FASTBOOT_PARTITION_LIST;
 
 STATIC LIST_ENTRY mPartitionListHead;
-
+STATIC EFI_HANDLE mFlashHandle;
 STATIC EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *mTextOut;
 
 /*
@@ -152,7 +153,6 @@ LoadPtable (
   UINTN                               NumHandles;
   EFI_HANDLE                         *AllHandles;
   UINTN                               LoopIndex;
-  EFI_HANDLE                          FlashHandle;
   EFI_BLOCK_IO_PROTOCOL              *FlashBlockIo;
   EFI_PARTITION_ENTRY                *PartitionEntries;
   FASTBOOT_PARTITION_LIST            *Entry;
@@ -174,7 +174,6 @@ LoadPtable (
   // in the system supporting EFI_BLOCK_IO_PROTOCOL and then filter out ones
   // that don't represent partitions on the flash device.
   //
-
   FlashDevicePath = ConvertTextToDevicePath ((CHAR16*)FixedPcdGetPtr (PcdAndroidFastbootNvmDevicePath));
 
   //
@@ -183,15 +182,16 @@ LoadPtable (
   //
   // Create another device path pointer because LocateDevicePath will modify it.
   FlashDevicePathDup = FlashDevicePath;
-  Status = gBS->LocateDevicePath (&gEfiBlockIoProtocolGuid, &FlashDevicePathDup, &FlashHandle);
+  Status = gBS->LocateDevicePath (&gEfiBlockIoProtocolGuid, &FlashDevicePathDup, &mFlashHandle);
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "Warning: Couldn't locate Android NVM device (status: %r)\n", Status));
     // Failing to locate partitions should not prevent to do other Android FastBoot actions
     return EFI_SUCCESS;
   }
 
+
   Status = gBS->OpenProtocol (
-                  FlashHandle,
+                  mFlashHandle,
                   &gEfiBlockIoProtocolGuid,
                   (VOID **) &FlashBlockIo,
                   gImageHandle,
@@ -273,7 +273,8 @@ LoadPtable (
         PartitionEntries[PartitionNode->PartitionNumber - 1].PartitionName, // Partition numbers start from 1.
         PARTITION_NAME_MAX_LENGTH
         );
-      Entry->Lba = PartitionEntries[PartitionNode->PartitionNumber - 1].StartingLBA;
+      Entry->StartingLBA = PartitionEntries[PartitionNode->PartitionNumber - 1].StartingLBA;
+      Entry->EndingLBA = PartitionEntries[PartitionNode->PartitionNumber - 1].EndingLBA;
       InsertTailList (&mPartitionListHead, &Entry->Link);
 
       // Print a debug message if the partition label is empty or looks like
@@ -327,29 +328,10 @@ HiKey960FlashPtable (
   )
 {
   EFI_STATUS               Status;
-  //EFI_BLOCK_IO_PROTOCOL   *BlockIo;
-  EFI_HANDLE                          FlashHandle;
-  EFI_DEVICE_PATH_PROTOCOL           *FlashDevicePath;
-  EFI_DEVICE_PATH_PROTOCOL           *FlashDevicePathDup;
-  EFI_BLOCK_IO_PROTOCOL              *FlashBlockIo;
-
-  FlashDevicePath = ConvertTextToDevicePath ((CHAR16*)FixedPcdGetPtr (PcdAndroidFastbootNvmDevicePath));
-
-  //
-  // Open the Disk IO protocol on the flash device - this will be used to read
-  // partition names out of the GPT entries
-  //
-  // Create another device path pointer because LocateDevicePath will modify it.
-  FlashDevicePathDup = FlashDevicePath;
-  Status = gBS->LocateDevicePath (&gEfiBlockIoProtocolGuid, &FlashDevicePathDup, &FlashHandle);
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "Warning: Couldn't locate Android NVM device (status: %r)\n", Status));
-    // Failing to locate partitions should not prevent to do other Android FastBoot actions
-    return EFI_SUCCESS;
-  }
+  EFI_BLOCK_IO_PROTOCOL   *FlashBlockIo;
 
   Status = gBS->OpenProtocol (
-                  FlashHandle,
+                  mFlashHandle,
                   &gEfiBlockIoProtocolGuid,
                   (VOID **) &FlashBlockIo,
                   gImageHandle,
@@ -392,6 +374,7 @@ HiKey960FastbootPlatformFlashPartition (
   CHAR16                   PartitionNameUnicode[60];
   BOOLEAN                  PartitionFound;
 
+  // Support the pseudo partition name, such as "ptable".
   if (AsciiStrCmp (PartitionName, "ptable") == 0) {
     return HiKey960FlashPtable (Size, Image);
   }
@@ -463,7 +446,63 @@ HiKey960FastbootPlatformErasePartition (
   IN CHAR8 *PartitionName
   )
 {
-  return EFI_SUCCESS;
+  EFI_STATUS                  Status;
+  EFI_ERASE_BLOCK_PROTOCOL   *EraseBlockProtocol;
+  BOOLEAN                     PartitionFound;
+  CHAR16                      PartitionNameUnicode[60];
+  FASTBOOT_PARTITION_LIST    *Entry;
+  EFI_BLOCK_IO_PROTOCOL      *BlockIo;
+  UINTN                       Size;
+
+  AsciiStrToUnicodeStr (PartitionName, PartitionNameUnicode);
+
+  PartitionFound = FALSE;
+  // Do not support the pseudo partition name, such as "ptable".
+  Entry = (FASTBOOT_PARTITION_LIST *) GetFirstNode (&mPartitionListHead);
+  while (!IsNull (&mPartitionListHead, &Entry->Link)) {
+    // Search the partition list for the partition named by PartitionName
+    if (StrCmp (Entry->PartitionName, PartitionNameUnicode) == 0) {
+      PartitionFound = TRUE;
+      break;
+    }
+    Entry = (FASTBOOT_PARTITION_LIST *) GetNextNode (&mPartitionListHead, &Entry->Link);
+  }
+  if (!PartitionFound) {
+    return EFI_NOT_FOUND;
+  }
+
+  Status = gBS->OpenProtocol (
+                  Entry->PartitionHandle,
+                  &gEfiBlockIoProtocolGuid,
+                  (VOID **) &BlockIo,
+                  gImageHandle,
+                  NULL,
+                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Fastboot platform: could not open Block IO: %r\n", Status));
+    return Status;
+  }
+  Status = gBS->OpenProtocol (
+                  mFlashHandle,
+                  &gEfiEraseBlockProtocolGuid,
+                  (VOID **) &EraseBlockProtocol,
+                  gImageHandle,
+                  NULL,
+                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
+                  );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+  Size = (Entry->EndingLBA - Entry->StartingLBA + 1) * BlockIo->Media->BlockSize;
+  Status = EraseBlockProtocol->EraseBlocks (
+                                 EraseBlockProtocol,
+                                 BlockIo->Media->MediaId,
+                                 Entry->StartingLBA,
+                                 NULL,
+                                 Size
+                                 );
+  return Status;
 }
 
 EFI_STATUS
