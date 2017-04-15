@@ -391,13 +391,6 @@ HiKey960FastbootPlatformFlashPartition (
   FASTBOOT_PARTITION_LIST *Entry;
   CHAR16                   PartitionNameUnicode[60];
   BOOLEAN                  PartitionFound;
-#ifdef SPARSE_HEADER
-  SPARSE_HEADER           *SparseHeader;
-  CHUNK_HEADER            *ChunkHeader;
-  UINTN                    Offset = 0;
-  UINT32                   Chunk, EntrySize, EntryOffset;
-  UINT32                  *FillVal, TmpCount, FillBuf[1024];
-#endif
 
   if (AsciiStrCmp (PartitionName, "ptable") == 0) {
     return HiKey960FlashPtable (Size, Image);
@@ -432,24 +425,6 @@ HiKey960FastbootPlatformFlashPartition (
     return EFI_NOT_FOUND;
   }
 
-#ifdef SPARSE_HEADER
-  SparseHeader=(SPARSE_HEADER *)Image;
-
-  if (SparseHeader->Magic == SPARSE_HEADER_MAGIC) {
-    DEBUG ((DEBUG_INFO, "Sparse Magic: 0x%x Major: %d Minor: %d fhs: %d chs: %d bs: %d tbs: %d tcs: %d checksum: %d \n",
-                SparseHeader->Magic, SparseHeader->MajorVersion, SparseHeader->MinorVersion,  SparseHeader->FileHeaderSize,
-                SparseHeader->ChunkHeaderSize, SparseHeader->BlockSize, SparseHeader->TotalBlocks,
-                SparseHeader->TotalChunks, SparseHeader->ImageChecksum));
-    if (SparseHeader->MajorVersion != 1) {
-        DEBUG ((DEBUG_ERROR, "Sparse image version %d.%d not supported.\n",
-                    SparseHeader->MajorVersion, SparseHeader->MinorVersion));
-        return EFI_INVALID_PARAMETER;
-    }
-
-    Size = SparseHeader->BlockSize * SparseHeader->TotalBlocks;
-  }
-#endif
-
   // Check image will fit on device
   PartitionSize = (BlockIo->Media->LastBlock + 1) * BlockIo->Media->BlockSize;
   if (PartitionSize < Size) {
@@ -471,89 +446,11 @@ HiKey960FastbootPlatformFlashPartition (
                   );
   ASSERT_EFI_ERROR (Status);
 
-#ifdef SPARSE_HEADER
-  if (SparseHeader->Magic == SPARSE_HEADER_MAGIC) {
-    CHAR16 OutputString[64];
-    UINTN ChunkPrintDensity =
-        SparseHeader->TotalChunks > 1600 ? SparseHeader->TotalChunks / 200 : 32;
-
-    Image += SparseHeader->FileHeaderSize;
-    for (Chunk = 0; Chunk < SparseHeader->TotalChunks; Chunk++) {
-      UINTN WriteSize;
-      ChunkHeader = (CHUNK_HEADER *)Image;
-
-      // Show progress. Don't do it for every packet as outputting text
-      // might be time consuming. ChunkPrintDensity is calculated to
-      // provide an update every half percent change for large
-      // downloads.
-      if (Chunk % ChunkPrintDensity == 0) {
-        UnicodeSPrint(OutputString, sizeof(OutputString),
-                      L"\r%5d / %5d chunks written (%d%%)", Chunk,
-                      SparseHeader->TotalChunks,
-                     (Chunk * 100) / SparseHeader->TotalChunks);
-        mTextOut->OutputString(mTextOut, OutputString);
-      }
-
-      DEBUG ((DEBUG_INFO, "Chunk #%d - Type: 0x%x Size: %d TotalSize: %d Offset %d\n",
-                  (Chunk+1), ChunkHeader->ChunkType, ChunkHeader->ChunkSize,
-                  ChunkHeader->TotalSize, Offset));
-      Image += sizeof(CHUNK_HEADER);
-      WriteSize=(SparseHeader->BlockSize) * ChunkHeader->ChunkSize;
-      switch (ChunkHeader->ChunkType) {
-        case CHUNK_TYPE_RAW:
-          DEBUG ((DEBUG_INFO, "Writing %d at Offset %d\n", WriteSize, Offset));
-          Status = DiskIo->WriteDisk (DiskIo, MediaId, Offset, WriteSize, Image);
-          if (EFI_ERROR (Status)) {
-            return Status;
-          }
-          Image+=WriteSize;
-          break;
-        case CHUNK_TYPE_FILL:
-          //Assume fillVal is 0, and we can skip here
-          FillVal = (UINT32 *)Image;
-          Image += sizeof(UINT32);
-          if (*FillVal != 0){
-            mTextOut->OutputString(mTextOut, OutputString);
-            for(TmpCount = 0; TmpCount < 1024; TmpCount++){
-                FillBuf[TmpCount] = *FillVal;
-            }
-            for (TmpCount= 0; TmpCount < WriteSize; TmpCount += sizeof(FillBuf)) {
-                if ((WriteSize - TmpCount) < sizeof(FillBuf)) {
-                  Status = DiskIo->WriteDisk (DiskIo, MediaId, Offset + TmpCount, WriteSize - TmpCount, FillBuf);
-                } else {
-                  Status = DiskIo->WriteDisk (DiskIo, MediaId, Offset + TmpCount, sizeof(FillBuf), FillBuf);
-                }
-                if (EFI_ERROR (Status)) {
-                    return Status;
-                }
-            }
-          }
-          break;
-        case CHUNK_TYPE_DONT_CARE:
-          break;
-        case CHUNK_TYPE_CRC32:
-          break;
-        default:
-          DEBUG ((DEBUG_ERROR, "Unknown Chunk Type: 0x%x", ChunkHeader->ChunkType));
-          return EFI_PROTOCOL_ERROR;
-      }
-      Offset += WriteSize;
-    }
-
-    UnicodeSPrint(OutputString, sizeof(OutputString),
-                  L"\r%5d / %5d chunks written (100%%)\r\n",
-                  SparseHeader->TotalChunks, SparseHeader->TotalChunks);
-    mTextOut->OutputString(mTextOut, OutputString);
-  } else {
-#endif
-    Status = DiskIo->WriteDisk (DiskIo, MediaId, 0, Size, Image);
-    if (EFI_ERROR (Status)) {
-      DEBUG ((DEBUG_ERROR, "Failed to write %d bytes into 0x%x, Status:%r\n", Size, Image, Status));
-      return Status;
-    }
-#ifdef SPARSE_HEADER
+  Status = DiskIo->WriteDisk (DiskIo, MediaId, 0, Size, Image);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Failed to write %d bytes into 0x%x, Status:%r\n", Size, Image, Status));
+    return Status;
   }
-#endif
 
   BlockIo->FlushBlocks(BlockIo);
   MicroSecondDelay (50000);
