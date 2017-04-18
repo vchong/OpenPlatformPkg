@@ -154,14 +154,8 @@ ReadPartitionEntries (
 }
 
 
-/*
-  Initialise: Open the Android NVM device and find the partitions on it. Save them in
-  a list along with the "PartitionName" fields for their GPT entries.
-  We will use these partition names as the key in
-  HiKeyFastbootPlatformFlashPartition.
-*/
 EFI_STATUS
-HiKeyFastbootPlatformInit (
+HiKeyFastbootLoadPtable (
   VOID
   )
 {
@@ -179,15 +173,8 @@ HiKeyFastbootPlatformInit (
   EFI_PARTITION_ENTRY                *PartitionEntries;
   FASTBOOT_PARTITION_LIST            *Entry;
 
-  InitializeListHead (&mPartitionListHead);
-
-  Status = gBS->LocateProtocol (&gEfiSimpleTextOutProtocolGuid, NULL, (VOID **) &mTextOut);
-  if (EFI_ERROR (Status)) {
-    DEBUG ((EFI_D_ERROR,
-      "Fastboot platform: Couldn't open Text Output Protocol: %r\n", Status
-      ));
-    return Status;
-  }
+  // Free any entries in partitionlist
+    FreePartitionList ();
 
   //
   // Get EFI_HANDLES for all the partitions on the block devices pointed to by
@@ -334,7 +321,32 @@ Exit:
   FreePool (FlashDevicePath);
   FreePool (AllHandles);
   return Status;
+}
 
+
+/*
+  Initialise: Open the Android NVM device and find the partitions on it. Save them in
+  a list along with the "PartitionName" fields for their GPT entries.
+  We will use these partition names as the key in
+  HiKeyFastbootPlatformFlashPartition.
+*/
+EFI_STATUS
+HiKeyFastbootPlatformInit (
+  VOID
+  )
+{
+  EFI_STATUS                          Status;
+
+  InitializeListHead (&mPartitionListHead);
+
+  Status = gBS->LocateProtocol (&gEfiSimpleTextOutProtocolGuid, NULL, (VOID **) &mTextOut);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((EFI_D_ERROR,
+      "Fastboot platform: Couldn't open Text Output Protocol: %r\n", Status
+      ));
+    return Status;
+  }
+  return HiKeyFastbootLoadPtable();
 }
 
 VOID
@@ -529,6 +541,8 @@ HiKeyFastbootPlatformFlashPartition (
       }
       Buffer = Image + 512;
       Status = DiskIo->WriteDisk (DiskIo, MediaId, EntryOffset, EntrySize, Buffer);
+      DEBUG ((EFI_D_ERROR, "Flashed Ptable hence reloading partition Entries for future flash commands\n"));
+      HiKeyFastbootLoadPtable();
       if (EFI_ERROR (Status)) {
         return Status;
       }
