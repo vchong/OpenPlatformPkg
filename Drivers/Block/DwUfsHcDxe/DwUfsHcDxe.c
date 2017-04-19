@@ -48,7 +48,8 @@ UFS_HOST_CONTROLLER_PRIVATE_DATA gUfsHcTemplate = {
     UfsHcFlush,
     UfsHcMmioRead,
     UfsHcMmioWrite,
-    UfsHcPhyInit
+    UfsHcPhyInit,
+    UfsHcPhySetPowerMode,
   },
   0                               // RegBase
 };
@@ -501,6 +502,81 @@ UfsHcPhyInit (
   DwUfsDmeSet (Private->RegBase, 0x2044, 0, 0);
   DwUfsDmeSet (Private->RegBase, 0x2045, 0, 0);
   DwUfsDmeSet (Private->RegBase, 0x2040, 0, 9);
+  return EFI_SUCCESS;
+}
+
+EFI_STATUS
+EFIAPI
+UfsHcPhySetPowerMode (
+  IN     EDKII_UFS_HOST_CONTROLLER_PROTOCOL        *This
+  )
+{
+  UFS_HOST_CONTROLLER_PRIVATE_DATA  *Private;
+  UINT32                            Data, TxLanes, RxLanes;
+
+  Private  = UFS_HOST_CONTROLLER_PRIVATE_DATA_FROM_UFSHC (This);
+  // PA_Tactive
+  DwUfsDmeGet (Private->RegBase, 0x15A8, 0, &Data);
+  if (Data < 7) {
+    DwUfsDmeSet (Private->RegBase, 0x15A8, 4, 7);
+  }
+  DwUfsDmeGet (Private->RegBase, 0x1561, 0, &TxLanes);
+  DwUfsDmeGet (Private->RegBase, 0x1581, 0, &RxLanes);
+
+  // PA TxSkip
+  DwUfsDmeSet (Private->RegBase, 0x155C, 0, 0);
+  // PA TxGear
+  DwUfsDmeSet (Private->RegBase, 0x1568, 0, 3);
+  // PA RxGear
+  DwUfsDmeSet (Private->RegBase, 0x1583, 0, 3);
+  // PA HSSeries
+  DwUfsDmeSet (Private->RegBase, 0x156A, 0, 2);
+  // PA TxTermination
+  DwUfsDmeSet (Private->RegBase, 0x1569, 0, 1);
+  // PA RxTermination
+  DwUfsDmeSet (Private->RegBase, 0x1584, 0, 1);
+  // PA Scrambling
+  DwUfsDmeSet (Private->RegBase, 0x1585, 0, 0);
+  // PA ActiveTxDataLines
+  DwUfsDmeSet (Private->RegBase, 0x1560, 0, TxLanes);
+  // PA ActiveRxDataLines
+  DwUfsDmeSet (Private->RegBase, 0x1580, 0, RxLanes);
+  // PA_PWRModeUserData0 = 8191
+  DwUfsDmeSet (Private->RegBase, 0x15B0, 0, 8191);
+  // PA_PWRModeUserData1 = 65535
+  DwUfsDmeSet (Private->RegBase, 0x15B1, 0, 65535);
+  // PA_PWRModeUserData2 = 32767
+  DwUfsDmeSet (Private->RegBase, 0x15B2, 0, 32767);
+  // DME_FC0ProtectionTimeOutVal = 8191
+  DwUfsDmeSet (Private->RegBase, 0xD041, 0, 8191);
+  // DME_TC0ReplayTimeOutVal = 65535
+  DwUfsDmeSet (Private->RegBase, 0xD042, 0, 65535);
+  // DME_AFC0ReqTimeOutVal = 32767
+  DwUfsDmeSet (Private->RegBase, 0xD043, 0, 32767);
+  // PA_PWRModeUserData3 = 8191
+  DwUfsDmeSet (Private->RegBase, 0x15B3, 0, 8191);
+  // PA_PWRModeUserData4 = 65535
+  DwUfsDmeSet (Private->RegBase, 0x15B4, 0, 65535);
+  // PA_PWRModeUserData5 = 32767
+  DwUfsDmeSet (Private->RegBase, 0x15B5, 0, 32767);
+  // DME_FC1ProtectionTimeOutVal = 8191
+  DwUfsDmeSet (Private->RegBase, 0xD044, 0, 8191);
+  // DME_TC1ReplayTimeOutVal = 65535
+  DwUfsDmeSet (Private->RegBase, 0xD045, 0, 65535);
+  // DME_AFC1ReqTimeOutVal = 32767
+  DwUfsDmeSet (Private->RegBase, 0xD046, 0, 32767);
+
+  DwUfsDmeSet (Private->RegBase, 0x1571, 0, 0x11);
+  do {
+    Data = MmioRead32(Private->RegBase + UFS_HC_IS_OFFSET);
+  } while ((Data & UFS_INT_UPMS) == 0);
+  MmioWrite32(Private->RegBase + UFS_HC_IS_OFFSET, UFS_INT_UPMS);
+  Data = MmioRead32(Private->RegBase + UFS_HC_STATUS_OFFSET);
+  if ((Data & HCS_UPMCRS_MASK) == HCS_PWR_LOCAL) {
+    DEBUG ((DEBUG_INFO, "ufs: change power mode success\n"));
+  } else {
+    DEBUG ((DEBUG_ERROR, "ufs: HCS.UPMCRS error, HCS:0x%x\n", Data));
+  }
   return EFI_SUCCESS;
 }
 

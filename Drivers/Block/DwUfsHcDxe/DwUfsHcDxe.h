@@ -104,6 +104,11 @@
 #define UFS_UIC_DME_GET            1
 #define UFS_UIC_DME_SET            2
 
+#define UFS_INT_UPMS               BIT4
+
+#define HCS_UPMCRS_MASK            (BIT10 | BIT9 | BIT8)
+#define HCS_PWR_LOCAL              BIT8
+
 extern EFI_DRIVER_BINDING_PROTOCOL                gUfsHcDriverBinding;
 extern EFI_COMPONENT_NAME_PROTOCOL                gUfsHcComponentName;
 extern EFI_COMPONENT_NAME2_PROTOCOL               gUfsHcComponentName2;
@@ -580,6 +585,12 @@ UfsHcMmioWrite (
 EFI_STATUS
 EFIAPI
 UfsHcPhyInit (
+  IN     EDKII_UFS_HOST_CONTROLLER_PROTOCOL        *This
+  );
+
+EFI_STATUS
+EFIAPI
+UfsHcPhySetPowerMode (
   IN     EDKII_UFS_HOST_CONTROLLER_PROTOCOL        *This
   );
 #endif /* _DW_UFS_HOST_CONTROLLER_H_ */
