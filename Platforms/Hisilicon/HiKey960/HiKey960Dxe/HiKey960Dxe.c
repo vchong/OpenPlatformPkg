@@ -215,74 +215,6 @@ InitBoardId (
   return EFI_SUCCESS;
 }
 
-#if 0
-STATIC
-VOID
-InitUfs (
-  VOID
-  )
-{
-  UINT32       Data, Mask;
-
-  MmioWrite32 (CRG_REG_BASE + CRG_PERRSTEN3_OFFSET, PERI_UFS_BIT);
-  do {
-    Data = MmioRead32 (CRG_REG_BASE + CRG_PERRSTSTAT3_OFFSET);
-  } while ((Data & PERI_UFS_BIT) == 0);
-  MicroSecondDelay (1);
-
-  Data = MmioRead32 (UFS_SYS_REG_BASE + UFS_SYS_PSW_POWER_CTRL_OFFSET);
-  Data |= BIT_UFS_PSW_MTCMOS_EN;
-  MmioWrite32 (UFS_SYS_REG_BASE + UFS_SYS_PSW_POWER_CTRL_OFFSET, Data);
-  MicroSecondDelay (1);
-  Data = MmioRead32 (UFS_SYS_REG_BASE + UFS_SYS_HC_LP_CTRL_OFFSET);
-  Data |= BIT_SYSCTRL_PWR_READY;
-  MmioWrite32 (UFS_SYS_REG_BASE + UFS_SYS_HC_LP_CTRL_OFFSET, Data);
-  MmioWrite32 (UFS_SYS_REG_BASE + UFS_SYS_UFS_DEVICE_RESET_CTRL_OFFSET,
-               MASK_UFS_DEVICE_RESET);
-  Mask = SC_DIV_UFS_PERIBUS << 16;
-  MmioWrite32 (CRG_REG_BASE + CRG_CLKDIV17_OFFSET, Mask);
-  Mask = SC_DIV_UFSPHY_CFG_MASK << 16;
-  Data = SC_DIV_UFSPHY_CFG(3);
-  MmioWrite32 (CRG_REG_BASE + CRG_CLKDIV16_OFFSET, Mask | Data);
-  Data = MmioRead32 (UFS_SYS_REG_BASE + UFS_SYS_PHY_CLK_CTRL_OFFSET);
-  Data &= ~MASK_SYSCTRL_CFG_CLOCK_FREQ;
-  Data |= 0x39;
-  MmioWrite32 (UFS_SYS_REG_BASE + UFS_SYS_PHY_CLK_CTRL_OFFSET, Data);
-
-  Data = MmioRead32 (UFS_SYS_REG_BASE + UFS_SYS_PHY_CLK_CTRL_OFFSET);
-  Data &= ~MASK_SYSCTRL_REF_CLOCK_SEL;
-  MmioWrite32 (UFS_SYS_REG_BASE + UFS_SYS_PHY_CLK_CTRL_OFFSET, Data);
-  Data = MmioRead32 (UFS_SYS_REG_BASE + UFS_SYS_PHY_CLK_CTRL_OFFSET);
-  Data |= BIT_SYSCTRL_PSW_CLK_EN;
-  MmioWrite32 (UFS_SYS_REG_BASE + UFS_SYS_PHY_CLK_CTRL_OFFSET, Data);
-  Data = MmioRead32 (UFS_SYS_REG_BASE + UFS_SYS_PSW_POWER_CTRL_OFFSET);
-  Data &= ~BIT_UFS_PSW_ISO_CTRL;
-  MmioWrite32 (UFS_SYS_REG_BASE + UFS_SYS_PSW_POWER_CTRL_OFFSET, Data);
-  Data = MmioRead32 (UFS_SYS_REG_BASE + UFS_SYS_PHY_ISO_EN_OFFSET);
-  Data &= ~BIT_UFS_PHY_ISO_CTRL;
-  MmioWrite32 (UFS_SYS_REG_BASE + UFS_SYS_PHY_ISO_EN_OFFSET, Data);
-  Data = MmioRead32 (UFS_SYS_REG_BASE + UFS_SYS_HC_LP_CTRL_OFFSET);
-  Data &= ~BIT_SYSCTRL_LP_ISOL_EN;
-  MmioWrite32 (UFS_SYS_REG_BASE + UFS_SYS_HC_LP_CTRL_OFFSET, Data);
-  MmioWrite32 (CRG_REG_BASE + CRG_PERRSTDIS3_OFFSET, PERI_ARST_UFS_BIT);
-
-  Data = MmioRead32 (UFS_SYS_REG_BASE + UFS_SYS_RESET_CTRL_EN_OFFSET);
-  Data |= BIT_SYSCTRL_LP_RESET_N;
-  MmioWrite32 (UFS_SYS_REG_BASE + UFS_SYS_RESET_CTRL_EN_OFFSET, Data);
-  MicroSecondDelay (1);
-  MmioWrite32 (UFS_SYS_REG_BASE + UFS_SYS_UFS_DEVICE_RESET_CTRL_OFFSET,
-               MASK_UFS_DEVICE_RESET | BIT_UFS_DEVICE_RESET);
-  MicroSecondDelay (20);
-  MmioWrite32 (UFS_SYS_REG_BASE + UFS_SYS_UFS_DEVICE_RESET_CTRL_OFFSET,
-               0x03300330);
-
-  MmioWrite32 (CRG_REG_BASE + CRG_PERRSTDIS3_OFFSET, PERI_UFS_BIT);
-  do {
-    Data = MmioRead32 (CRG_REG_BASE + CRG_PERRSTSTAT3_OFFSET);
-  } while (Data & PERI_UFS_BIT);
-}
-#endif
-
 
 /**
   Notification function of the event defined as belonging to the
@@ -322,7 +254,6 @@ HiKey960EntryPoint (
   if (EFI_ERROR (Status)) {
     return Status;
   }
-  //InitUfs ();
 
   //
   // Create an event belonging to the "gEfiEndOfDxeEventGroupGuid" group.
