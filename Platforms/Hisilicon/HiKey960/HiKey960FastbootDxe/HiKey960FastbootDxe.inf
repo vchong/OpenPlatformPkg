@@ -25,6 +25,7 @@
   HiKey960FastbootDxe.c
 
 [LibraryClasses]
+  ArmGenericTimerCounterLib
   BaseLib
   BaseMemoryLib
   DebugLib
