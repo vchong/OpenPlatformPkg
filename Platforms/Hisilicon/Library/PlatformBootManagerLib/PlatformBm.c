@@ -319,6 +319,7 @@ PlatformRegisterFvBootOption (
     Status = EfiBootManagerAddLoadOptionVariable (&NewOption, MAX_UINTN);
     ASSERT_EFI_ERROR (Status);
   }
+
   EfiBootManagerFreeLoadOption (&NewOption);
   EfiBootManagerFreeLoadOptions (BootOptions, BootOptionCount);
 }
@@ -332,9 +333,23 @@ PlatformRegisterOptionsAndKeys (
 {
   EFI_STATUS                   Status;
   EFI_INPUT_KEY                Enter;
-  EFI_INPUT_KEY                F2;
   EFI_INPUT_KEY                Esc;
+  EFI_INPUT_KEY                KeyF;
   EFI_BOOT_MANAGER_LOAD_OPTION BootOption;
+
+  //
+  // Register Android Boot. OptionNumber is 1.
+  //
+  PlatformRegisterFvBootOption (
+    PcdGetPtr (PcdAndroidBootFile), L"Android Boot", LOAD_OPTION_ACTIVE
+    );
+
+  //
+  // Register Android Fastboot. OptionNumber is 2.
+  //
+  PlatformRegisterFvBootOption (
+    PcdGetPtr (PcdAndroidFastbootFile), L"Android Fastboot", LOAD_OPTION_ACTIVE
+    );
 
   //
   // Register ENTER as CONTINUE key
@@ -345,20 +360,24 @@ PlatformRegisterOptionsAndKeys (
   ASSERT_EFI_ERROR (Status);
 
   //
-  // Map F2 and ESC to Boot Manager Menu
+  // Map ESC to Boot Manager Menu
   //
-  F2.ScanCode     = SCAN_F2;
-  F2.UnicodeChar  = CHAR_NULL;
   Esc.ScanCode    = SCAN_ESC;
   Esc.UnicodeChar = CHAR_NULL;
   Status = EfiBootManagerGetBootManagerMenu (&BootOption);
   ASSERT_EFI_ERROR (Status);
   Status = EfiBootManagerAddKeyOptionVariable (
-             NULL, (UINT16) BootOption.OptionNumber, 0, &F2, NULL
+             NULL, (UINT16) BootOption.OptionNumber, 0, &Esc, NULL
              );
   ASSERT (Status == EFI_SUCCESS || Status == EFI_ALREADY_STARTED);
+
+  //
+  // Map KeyF to Android Fastboot
+  //
+  KeyF.ScanCode    = SCAN_NULL;
+  KeyF.UnicodeChar = 'f';
   Status = EfiBootManagerAddKeyOptionVariable (
-             NULL, (UINT16) BootOption.OptionNumber, 0, &Esc, NULL
+             NULL, 2, 0, &KeyF, NULL
              );
   ASSERT (Status == EFI_SUCCESS || Status == EFI_ALREADY_STARTED);
 }
@@ -459,20 +478,6 @@ PlatformBootManagerAfterConsole (
   //
   PlatformRegisterFvBootOption (
     PcdGetPtr (PcdShellFile), L"UEFI Shell", LOAD_OPTION_ACTIVE
-    );
-
-  //
-  // Register Android Fastboot
-  //
-  PlatformRegisterFvBootOption (
-    PcdGetPtr (PcdAndroidFastbootFile), L"Android Fastboot", LOAD_OPTION_ACTIVE
-    );
-
-  //
-  // Register Android Boot
-  //
-  PlatformRegisterFvBootOption (
-    PcdGetPtr (PcdAndroidBootFile), L"Android Boot", LOAD_OPTION_ACTIVE
     );
 }
 
