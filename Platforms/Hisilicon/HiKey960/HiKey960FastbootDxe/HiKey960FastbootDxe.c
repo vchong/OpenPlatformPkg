@@ -369,6 +369,76 @@ HiKey960FlashPtable (
 }
 
 EFI_STATUS
+HiKey960ErasePtable (
+  VOID
+  )
+{
+  EFI_STATUS                  Status;
+  EFI_BLOCK_IO_PROTOCOL      *BlockIo;
+#if 0
+  EFI_ERASE_BLOCK_PROTOCOL   *EraseBlockProtocol;
+#endif
+
+  Status = gBS->OpenProtocol (
+                  mFlashHandle,
+                  &gEfiBlockIoProtocolGuid,
+                  (VOID **) &BlockIo,
+                  gImageHandle,
+                  NULL,
+                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Fastboot platform: could not open Block IO: %r\n", Status));
+    return Status;
+  }
+#if 0
+  Status = gBS->OpenProtocol (
+                  mFlashHandle,
+                  &gEfiEraseBlockProtocolGuid,
+                  (VOID **) &EraseBlockProtocol,
+                  gImageHandle,
+                  NULL,
+                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Fastboot platform: could not open Erase Block IO: %r\n", Status));
+    return EFI_DEVICE_ERROR;
+  }
+  Status = EraseBlockProtocol->EraseBlocks (
+                                 EraseBlockProtocol,
+                                 BlockIo->Media->MediaId,
+                                 0,
+                                 NULL,
+                                 6 * BlockIo->Media->BlockSize
+                                 );
+#else
+  {
+    VOID         *DataPtr;
+    UINTN         Lba;
+
+    DataPtr = AllocatePages (1);
+    ZeroMem (DataPtr, EFI_PAGE_SIZE);
+    for (Lba = 0; Lba < 6; Lba++) {
+      Status = BlockIo->WriteBlocks (
+                          BlockIo,
+                          BlockIo->Media->MediaId,
+                          Lba,
+                          EFI_PAGE_SIZE,
+                          DataPtr
+                          );
+      if (EFI_ERROR (Status)) {
+        goto Exit;
+      }
+    }
+Exit:
+    FreePages (DataPtr, 1);
+  }
+#endif
+  FreePartitionList ();
+  return Status;
+}
+
+EFI_STATUS
 HiKey960FastbootPlatformFlashPartition (
   IN CHAR8  *PartitionName,
   IN UINTN   Size,
@@ -457,17 +527,23 @@ HiKey960FastbootPlatformErasePartition (
   )
 {
   EFI_STATUS                  Status;
+#if 1
   EFI_ERASE_BLOCK_PROTOCOL   *EraseBlockProtocol;
+  UINTN                       Size;
+#endif
   BOOLEAN                     PartitionFound;
   CHAR16                      PartitionNameUnicode[60];
   FASTBOOT_PARTITION_LIST    *Entry;
   EFI_BLOCK_IO_PROTOCOL      *BlockIo;
-  UINTN                       Size;
 
   AsciiStrToUnicodeStr (PartitionName, PartitionNameUnicode);
 
+  // Support the pseudo partition name, such as "ptable".
+  if (AsciiStrCmp (PartitionName, "ptable") == 0) {
+    return HiKey960ErasePtable ();
+  }
+
   PartitionFound = FALSE;
-  // Do not support the pseudo partition name, such as "ptable".
   Entry = (FASTBOOT_PARTITION_LIST *) GetFirstNode (&mPartitionListHead);
   while (!IsNull (&mPartitionListHead, &Entry->Link)) {
     // Search the partition list for the partition named by PartitionName
@@ -493,6 +569,7 @@ HiKey960FastbootPlatformErasePartition (
     DEBUG ((DEBUG_ERROR, "Fastboot platform: could not open Block IO: %r\n", Status));
     return Status;
   }
+#if 1
   Status = gBS->OpenProtocol (
                   mFlashHandle,
                   &gEfiEraseBlockProtocolGuid,
@@ -512,6 +589,33 @@ HiKey960FastbootPlatformErasePartition (
                                  NULL,
                                  Size
                                  );
+#else
+  {
+    UINTN     Lba;
+    VOID     *DataPtr;
+
+    DataPtr = AllocatePages (1);
+    if (DataPtr == NULL) {
+      return EFI_BUFFER_TOO_SMALL;
+    }
+    ZeroMem (DataPtr, EFI_PAGE_SIZE);
+    for (Lba = 0; Lba < Entry->EndingLBA - Entry->StartingLBA; Lba++) {
+      Status = BlockIo->WriteBlocks (
+                          BlockIo,
+                          BlockIo->Media->MediaId,
+                          Lba,
+                          BlockIo->Media->BlockSize,
+                          DataPtr
+                          );
+DEBUG ((DEBUG_ERROR, "#%a, %d, Status:%r\n", __func__, __LINE__, Status));
+      if (EFI_ERROR (Status)) {
+        goto Exit;
+      }
+    }
+Exit:
+    FreePages (DataPtr, 1);
+  }
+#endif
   return Status;
 }
 
