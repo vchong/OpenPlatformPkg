@@ -25,7 +25,6 @@
   HiKey960FastbootDxe.c
 
 [LibraryClasses]
-  ArmGenericTimerCounterLib
   BaseLib
   BaseMemoryLib
   DebugLib
@@ -35,6 +34,7 @@
   UefiBootServicesTableLib
   UefiRuntimeServicesTableLib
   UefiDriverEntryPoint
+  UsbSerialNumberLib
   TimerLib
 
 [Protocols]

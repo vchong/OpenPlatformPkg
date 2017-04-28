@@ -26,7 +26,6 @@
 
 #include <Protocol/DevicePathToText.h>
 
-#include <Library/ArmGenericTimerCounterLib.h>
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
@@ -34,6 +33,7 @@
 #include <Library/MemoryAllocationLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiRuntimeServicesTableLib.h>
+#include <Library/UsbSerialNumberLib.h>
 #include <Library/PrintLib.h>
 #include <Library/TimerLib.h>
 
@@ -52,17 +52,10 @@
 #define HIKEY_ERASE_SIZE                 (16 * 1024 * 1024)
 #define HIKEY_ERASE_BLOCKS               (HIKEY_ERASE_SIZE / EFI_PAGE_SIZE)
 
-#define SERIAL_NUMBER_SIZE               17
 #define SERIAL_NUMBER_BLOCK_SIZE         EFI_PAGE_SIZE
 #define SERIAL_NUMBER_LBA                20
 #define RANDOM_MAX                       0x7FFFFFFFFFFFFFFF
 #define RANDOM_MAGIC                     0x9A4DBEAF
-
-typedef struct {
-  UINT64        Magic;
-  UINT64        Data;
-  CHAR16        UnicodeSN[SERIAL_NUMBER_SIZE];
-} RANDOM_SERIAL_NUMBER;
 
 typedef struct _FASTBOOT_PARTITION_LIST {
   LIST_ENTRY  Link;
@@ -75,123 +68,6 @@ typedef struct _FASTBOOT_PARTITION_LIST {
 STATIC LIST_ENTRY mPartitionListHead;
 STATIC EFI_HANDLE mFlashHandle;
 STATIC EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *mTextOut;
-
-STATIC
-EFI_STATUS
-GenerateRandomData (
-  IN  UINT32              Seed,
-  OUT UINT64             *RandomData
-  )
-{
-  INT64                   Quotient, Remainder, Tmp;
-
-  if (RandomData == NULL) {
-    return EFI_INVALID_PARAMETER;
-  }
-  Quotient = (INT64) Seed / 127773;
-  Remainder = (INT64) Seed % 127773;
-  Tmp = (16807 * Remainder) - (2836 * Quotient);
-  if (Tmp < 0) {
-    Tmp += RANDOM_MAX;
-  }
-  Tmp = Tmp % ((UINT64)RANDOM_MAX + 1);
-  *RandomData = (UINT64)Tmp;
-  return EFI_SUCCESS;
-}
-
-STATIC
-EFI_STATUS
-GenerateAndroidSN (
-  IN  UINT32                  Seed,
-  OUT RANDOM_SERIAL_NUMBER   *RandomSN
-  )
-{
-  EFI_STATUS               Status;
-  UINT64                   Tmp;
-
-  if (RandomSN == NULL) {
-    return EFI_INVALID_PARAMETER;
-  }
-  ZeroMem (RandomSN, sizeof (RANDOM_SERIAL_NUMBER));
-  Status = GenerateRandomData (Seed, &Tmp);
-  if (EFI_ERROR (Status)) {
-    return Status;
-  }
-  RandomSN->Data = (Tmp << 32) | Seed;
-  UnicodeSPrint (RandomSN->UnicodeSN, SERIAL_NUMBER_SIZE * sizeof (CHAR16), L"%lx", RandomSN->Data);
-  RandomSN->Magic = RANDOM_MAGIC;
-  return EFI_SUCCESS;
-}
-
-STATIC
-EFI_STATUS
-HiKey960InitSN (
-  VOID
-  )
-{
-  EFI_STATUS                  Status;
-  EFI_BLOCK_IO_PROTOCOL      *BlockIoProtocol;
-  VOID                       *DataPtr;
-  CHAR16                      DefaultSerialNo[] = L"0123456789abcdef";
-  BOOLEAN                     Found = FALSE;
-  UINT32                      Seed;
-  RANDOM_SERIAL_NUMBER       *RandomSN;
-
-  Status = gBS->OpenProtocol (
-                  mFlashHandle,
-                  &gEfiBlockIoProtocolGuid,
-                  (VOID **) &BlockIoProtocol,
-                  gImageHandle,
-                  NULL,
-                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
-                  );
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_WARN, "Warning: Couldn't open block device (status: %r)\n", Status));
-    return EFI_DEVICE_ERROR;
-  }
-
-  DataPtr = AllocatePages (1);
-  if (DataPtr == NULL) {
-    return EFI_BUFFER_TOO_SMALL;
-  }
-  Status = BlockIoProtocol->ReadBlocks (
-                              BlockIoProtocol,
-                              BlockIoProtocol->Media->MediaId,
-                              SERIAL_NUMBER_LBA,
-                              SERIAL_NUMBER_BLOCK_SIZE,
-                              DataPtr
-                              );
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_WARN, "Warning: Failed on reading blocks\n"));
-    goto Exit;
-  }
-
-  Seed = ArmGenericTimerGetSystemCount ();
-  RandomSN = (RANDOM_SERIAL_NUMBER *)DataPtr;
-  if (RandomSN->Magic == RANDOM_MAGIC) {
-    Found = TRUE;
-  }
-  if (Found == FALSE) {
-    Status = GenerateAndroidSN (Seed, RandomSN);
-    if (EFI_ERROR (Status)) {
-      CopyMem (&RandomSN->UnicodeSN, &DefaultSerialNo, SERIAL_NUMBER_SIZE * sizeof (CHAR16));
-    }
-  }
-  Status = BlockIoProtocol->WriteBlocks (
-                              BlockIoProtocol,
-                              BlockIoProtocol->Media->MediaId,
-                              SERIAL_NUMBER_LBA,
-                              SERIAL_NUMBER_BLOCK_SIZE,
-                              DataPtr
-                              );
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_WARN, "Warning: Failed on writing blocks\n"));
-    goto Exit;
-  }
-Exit:
-  FreePages (DataPtr, 1);
-  return Status;
-}
 
 /*
   Helper to free the partition list
@@ -439,12 +315,15 @@ HiKey960FastbootPlatformInit (
   )
 {
   EFI_STATUS               Status;
+  CHAR16                   UnicodeSN[SERIAL_NUMBER_SIZE];
 
   Status = LoadPtable ();
   if (EFI_ERROR (Status)) {
     return Status;
   }
-  return HiKey960InitSN ();
+  Status = LoadSNFromBlock (mFlashHandle, SERIAL_NUMBER_LBA, UnicodeSN);
+  (VOID)UnicodeSN;
+  return Status;
 }
 
 VOID
@@ -651,51 +530,15 @@ HiKey960FastbootPlatformGetVar (
   FASTBOOT_PARTITION_LIST *Entry;
   CHAR16                   PartitionNameUnicode[60];
   BOOLEAN                  PartitionFound;
+  CHAR16                   UnicodeSN[SERIAL_NUMBER_SIZE];
 
   if (!AsciiStrCmp (Name, "max-download-size")) {
     AsciiStrCpy (Value, FixedPcdGetPtr (PcdArmFastbootFlashLimit));
   } else if (!AsciiStrCmp (Name, "product")) {
     AsciiStrCpy (Value, FixedPcdGetPtr (PcdFirmwareVendor));
   } else if (!AsciiStrCmp (Name, "serialno")) {
-    EFI_BLOCK_IO_PROTOCOL      *BlockIoProtocol;
-    VOID                       *DataPtr;
-    RANDOM_SERIAL_NUMBER       *RandomSN;
-
-    Status = gBS->OpenProtocol (
-                    mFlashHandle,
-                    &gEfiBlockIoProtocolGuid,
-                    (VOID **) &BlockIoProtocol,
-                    gImageHandle,
-                    NULL,
-                    EFI_OPEN_PROTOCOL_GET_PROTOCOL
-                    );
-    if (EFI_ERROR (Status)) {
-      DEBUG ((DEBUG_WARN, "Warning: Couldn't open block device (status: %r)\n", Status));
-      *Value = '\0';
-      return EFI_DEVICE_ERROR;
-    }
-    DataPtr = AllocatePages (1);
-    if (DataPtr == NULL) {
-      *Value = '\0';
-      return EFI_BUFFER_TOO_SMALL;
-    }
-
-    RandomSN = (RANDOM_SERIAL_NUMBER *)DataPtr;
-    Status = BlockIoProtocol->ReadBlocks (
-                                BlockIoProtocol,
-                                BlockIoProtocol->Media->MediaId,
-                                SERIAL_NUMBER_LBA,
-                                SERIAL_NUMBER_BLOCK_SIZE,
-                                DataPtr
-                                );
-    if (EFI_ERROR (Status)) {
-      DEBUG ((DEBUG_WARN, "Warning: Failed on reading blocks\n"));
-      FreePages (DataPtr, 1);
-      *Value = '\0';
-      return Status;
-    }
-    UnicodeStrToAsciiStr (RandomSN->UnicodeSN, Value);
-    FreePages (DataPtr, 1);
+    Status = LoadSNFromBlock (mFlashHandle, SERIAL_NUMBER_LBA, UnicodeSN);
+    UnicodeStrToAsciiStr (UnicodeSN, Value);
   } else if ( !AsciiStrnCmp (Name, "partition-size", 14)) {
     AsciiStrToUnicodeStr ((Name + 15), PartitionNameUnicode);
     PartitionFound = FALSE;
