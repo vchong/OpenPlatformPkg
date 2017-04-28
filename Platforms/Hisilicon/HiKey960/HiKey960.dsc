@@ -365,7 +365,7 @@
   #
   # Android Loader
   #
-  gEmbeddedTokenSpaceGuid.PcdAndroidBootDevicePath|L"VenHw(0D51905B-B77E-452A-A2C0-ECA0CC8D514A,00003BFF0000000000)/UFS(0x0,0x3)/HD(7,GPT,61B94129-C1F2-4601-99EA-A1F518E1B082,0x11500,0x4000)"
+  gEmbeddedTokenSpaceGuid.PcdAndroidBootDevicePath|L"VenHw(0D51905B-B77E-452A-A2C0-ECA0CC8D514A,00003BFF0000000000)/UFS(0x0,0x3)/HD(3,GPT,DC1A888E-F17C-4964-92D6-F8FCC402ED8B,0xE00,0xC00)"
 
 [PcdsDynamicDefault.common]
   gEfiMdePkgTokenSpaceGuid.PcdPlatformBootTimeOut|10
