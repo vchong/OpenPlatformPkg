@@ -315,14 +315,11 @@ HiKey960FastbootPlatformInit (
   )
 {
   EFI_STATUS               Status;
-  CHAR16                   UnicodeSN[SERIAL_NUMBER_SIZE];
 
   Status = LoadPtable ();
   if (EFI_ERROR (Status)) {
     return Status;
   }
-  Status = LoadSNFromBlock (mFlashHandle, SERIAL_NUMBER_LBA, UnicodeSN);
-  (VOID)UnicodeSN;
   return Status;
 }
 
@@ -593,12 +590,23 @@ HiKey960FastbootPlatformOemCommand (
   IN  CHAR8   *Command
   )
 {
+  EFI_STATUS   Status;
+  CHAR16       UnicodeSN[SERIAL_NUMBER_SIZE];
+
   if (AsciiStrCmp (Command, "Demonstrate") == 0) {
     DEBUG ((DEBUG_ERROR, "ARM OEM Fastboot command 'Demonstrate' received.\n"));
     return EFI_SUCCESS;
+  } else if (AsciiStrCmp (Command, "serialno") == 0) {
+    Status = GenerateUsbSN (UnicodeSN);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "Failed to generate USB Serial Number.\n"));
+      return Status;
+    }
+    Status = StoreSNToBlock (mFlashHandle, SERIAL_NUMBER_LBA, UnicodeSN);
+    return Status;
   } else {
     DEBUG ((DEBUG_ERROR,
-      "HiKey: Unrecognised Fastboot OEM command: %s\n",
+      "HiKey960: Unrecognised Fastboot OEM command: %a\n",
       Command
       ));
     return EFI_NOT_FOUND;

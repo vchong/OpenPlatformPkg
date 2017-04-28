@@ -26,9 +26,14 @@ typedef struct {
 } RANDOM_SERIAL_NUMBER;
 
 EFI_STATUS
-GenerateUsbSN (
+GenerateUsbSNBySeed (
   IN  UINT32                  Seed,
   OUT RANDOM_SERIAL_NUMBER   *RandomSN
+  );
+
+EFI_STATUS
+GenerateUsbSN (
+  OUT CHAR16                 *UnicodeSN
   );
 
 EFI_STATUS

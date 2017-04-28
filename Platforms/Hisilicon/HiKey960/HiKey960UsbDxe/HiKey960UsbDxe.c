@@ -14,12 +14,15 @@
 
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
+#include <Library/DevicePathLib.h>
 #include <Library/IoLib.h>
 #include <Library/TimerLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiLib.h>
 #include <Library/UefiRuntimeServicesTableLib.h>
+#include <Library/UsbSerialNumberLib.h>
 
+#include <Protocol/BlockIo.h>
 #include <Protocol/DwUsb.h>
 
 #include <Hi3660.h>
@@ -34,6 +37,10 @@
 
 #define TX_VBOOST_LVL_MASK             7
 #define TX_VBOOST_LVL(x)               ((x) & TX_VBOOST_LVL_MASK)
+
+#define SERIAL_NUMBER_LBA              20
+
+STATIC EFI_HANDLE mFlashHandle;
 
 UINTN
 HiKey960GetUsbMode (
@@ -311,18 +318,25 @@ HiKey960UsbGetSerialNo (
   OUT UINT8             *Length
   )
 {
-  UINTN                  VariableSize;
-  CHAR16                 DataUnicode[SERIAL_STRING_LENGTH];
+  EFI_STATUS                          Status;
+  EFI_DEVICE_PATH_PROTOCOL           *FlashDevicePath;
+
+  if (mFlashHandle == 0) {
+    FlashDevicePath = ConvertTextToDevicePath ((CHAR16*)FixedPcdGetPtr (PcdAndroidFastbootNvmDevicePath));
+    Status = gBS->LocateDevicePath (&gEfiBlockIoProtocolGuid, &FlashDevicePath, &mFlashHandle);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "Warning: Couldn't locate Android NVM device (status: %r)\n", Status));
+      // Failing to locate partitions should not prevent to do other Android FastBoot actions
+      return EFI_SUCCESS;
+    }
+  }
 
   if ((SerialNo == NULL) || (Length == NULL)) {
     return EFI_INVALID_PARAMETER;
   }
-  VariableSize = SERIAL_STRING_LENGTH * sizeof (CHAR16);
-  ZeroMem (DataUnicode, SERIAL_STRING_LENGTH * sizeof(CHAR16));
-  StrCpy (DataUnicode, L"0123456789abcdef");
-  CopyMem (SerialNo, DataUnicode, VariableSize);
-  *Length = VariableSize;
-  return EFI_SUCCESS;
+  Status = LoadSNFromBlock (mFlashHandle, SERIAL_NUMBER_LBA, SerialNo);
+  *Length = StrSize (SerialNo);
+  return Status;
 }
 
 DW_USB_PROTOCOL mDwUsbDevice = {
@@ -340,16 +354,10 @@ HiKey960UsbEntryPoint (
   IN EFI_SYSTEM_TABLE                      *SystemTable
   )
 {
-  EFI_STATUS        Status;
-
-  Status = gBS->InstallProtocolInterface (
-                  &ImageHandle,
-                  &gDwUsbProtocolGuid,
-                  EFI_NATIVE_INTERFACE,
-                  &mDwUsbDevice
-                  );
-  if (EFI_ERROR (Status)) {
-    return Status;
-  }
-  return Status;
+  return gBS->InstallProtocolInterface (
+                &ImageHandle,
+                &gDwUsbProtocolGuid,
+                EFI_NATIVE_INTERFACE,
+                &mDwUsbDevice
+                );
 }

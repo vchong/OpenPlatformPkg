@@ -29,9 +29,11 @@
   TimerLib
   UefiBootServicesTableLib
   UefiDriverEntryPoint
+  UsbSerialNumberLib
 
 [Protocols]
   gDwUsbProtocolGuid
+  gEfiBlockIoProtocolGuid
   gEfiDriverBindingProtocolGuid
 
 [Packages]
@@ -40,6 +42,9 @@
   EmbeddedPkg/EmbeddedPkg.dec
   OpenPlatformPkg/Drivers/Usb/DwUsb3Dxe/DwUsb3Dxe.dec
   OpenPlatformPkg/Platforms/Hisilicon/HiKey960/HiKey960.dec
+
+[Pcd]
+  gHiKey960TokenSpaceGuid.PcdAndroidFastbootNvmDevicePath
 
 [Depex]
   TRUE

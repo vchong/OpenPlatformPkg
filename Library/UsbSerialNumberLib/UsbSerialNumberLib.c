@@ -57,7 +57,7 @@ GenerateRandomData (
 }
 
 EFI_STATUS
-GenerateUsbSN (
+GenerateUsbSNBySeed (
   IN  UINT32                  Seed,
   OUT RANDOM_SERIAL_NUMBER   *RandomSN
   )
@@ -76,6 +76,31 @@ GenerateUsbSN (
   RandomSN->Data = (Tmp << 32) | Seed;
   UnicodeSPrint (RandomSN->UnicodeSN, SERIAL_NUMBER_SIZE * sizeof (CHAR16), L"%lx", RandomSN->Data);
   RandomSN->Magic = RANDOM_MAGIC;
+  return EFI_SUCCESS;
+}
+
+EFI_STATUS
+GenerateUsbSN (
+  OUT CHAR16                  *UnicodeSN
+  )
+{
+  EFI_STATUS               Status;
+  UINT64                   Tmp;
+  UINT32                   Seed;
+  RANDOM_SERIAL_NUMBER     RandomSN;
+
+  if (UnicodeSN == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+  ZeroMem (&RandomSN, sizeof (RANDOM_SERIAL_NUMBER));
+  Seed = ArmGenericTimerGetSystemCount ();
+  Status = GenerateRandomData (Seed, &Tmp);
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+  RandomSN.Data = (Tmp << 32) | Seed;
+  UnicodeSPrint (RandomSN.UnicodeSN, SERIAL_NUMBER_SIZE * sizeof (CHAR16), L"%lx", RandomSN.Data);
+  StrCpyS (UnicodeSN, SERIAL_NUMBER_SIZE * sizeof (CHAR16), RandomSN.UnicodeSN);
   return EFI_SUCCESS;
 }
 
@@ -143,7 +168,7 @@ LoadSNFromBlock (
     }
   }
   if (Found == FALSE) {
-    Status = GenerateUsbSN (Seed, RandomSN);
+    Status = GenerateUsbSNBySeed (Seed, RandomSN);
     if (EFI_ERROR (Status)) {
       DEBUG ((DEBUG_WARN, "Warning: Failed to generate serial number\n"));
       goto Exit;

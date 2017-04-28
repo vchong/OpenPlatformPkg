@@ -201,10 +201,6 @@ STATIC struct usb_enum_port_param usb_port_activity_config = {
   .bInterfaceProtocol = USB_ENUM_INTERFACE_ADB_PROTOCOL
 };
 
-CHAR16 adb_string_manu[] = L"Fastboot2.0";
-CHAR16 adb_string_prod[] = L"HiKey960";
-CHAR16 string_serial[] = L"0123456789ABCDEF";
-
 STATIC
 UINT32
 DwUsb3GetEventBufEvent (
@@ -1783,6 +1779,7 @@ DwUsb3DoGetDescriptor (
   UINT16                len = ctrl->wLength;
   UINT8                 *buf = gEndPoint0StatusBuf;
   UINT16                value = 0;
+  EFI_USB_STRING_DESCRIPTOR        *Descriptor = NULL;
 
   if (ctrl->bmRequestType != (UT_READ | UT_STANDARD | UT_DEVICE)) {
     EndPoint0DoStall (pcd);
@@ -1894,29 +1891,36 @@ DwUsb3DoGetDescriptor (
     {
       switch (index) {
       case STRING_LANGUAGE:
-        buf[0] = 0x4;
-        buf[1] = UDESC_STRING;
-        buf[2] = 0x9;
-        buf[3] = 0x4;
-        value = 0x4;
+        Descriptor = (EFI_USB_STRING_DESCRIPTOR *)(UINTN)gEndPoint0StatusBuf;
+        ASSERT (Descriptor != NULL);
+        Descriptor->Length = LANG_LENGTH * sizeof (CHAR16);
+        Descriptor->DescriptorType = USB_DESC_TYPE_STRING;
+        DwUsb->GetLang (Descriptor->String, &Descriptor->Length);
+        value = Descriptor->Length;
         break;
       case STRING_MANUFACTURER:
-        buf[0] = (StrLen (adb_string_manu) + 1) * sizeof (CHAR16);
-        buf[1] = UDESC_STRING;
-        StrCpy ((CHAR16 *)(buf + 2), adb_string_manu);
-        value = buf[0];
+        Descriptor = (EFI_USB_STRING_DESCRIPTOR *)(UINTN)gEndPoint0StatusBuf;
+        ASSERT (Descriptor != NULL);
+        Descriptor->Length = MANU_FACTURER_STRING_LENGTH * sizeof (CHAR16);
+        Descriptor->DescriptorType = USB_DESC_TYPE_STRING;
+        DwUsb->GetManuFacturer (Descriptor->String, &Descriptor->Length);
+        value = Descriptor->Length;
         break;
       case STRING_PRODUCT:
-        buf[0] = (StrLen (adb_string_prod) + 1) * sizeof (CHAR16);
-        buf[1] = UDESC_STRING;
-        StrCpy ((CHAR16 *)(buf + 2), adb_string_prod);
-        value = buf[0];
+        Descriptor = (EFI_USB_STRING_DESCRIPTOR *)(UINTN)gEndPoint0StatusBuf;
+        ASSERT (Descriptor != NULL);
+        Descriptor->Length = PRODUCT_STRING_LENGTH * sizeof (CHAR16);
+        Descriptor->DescriptorType = USB_DESC_TYPE_STRING;
+        DwUsb->GetProduct (Descriptor->String, &Descriptor->Length);
+        value = Descriptor->Length;
         break;
       case STRING_SERIAL:
-        buf[0] = (StrLen (string_serial) + 1) * sizeof (CHAR16);
-        buf[1] = UDESC_STRING;
-        StrCpy ((CHAR16 *)(buf + 2), string_serial);
-        value = buf[0];
+        Descriptor = (EFI_USB_STRING_DESCRIPTOR *)(UINTN)gEndPoint0StatusBuf;
+        ASSERT (Descriptor != NULL);
+        Descriptor->Length = SERIAL_STRING_LENGTH * sizeof (CHAR16);
+        Descriptor->DescriptorType = USB_DESC_TYPE_STRING;
+        DwUsb->GetSerialNo (Descriptor->String, &Descriptor->Length);
+        value = Descriptor->Length;
         break;
       default:
         EndPoint0DoStall (pcd);
