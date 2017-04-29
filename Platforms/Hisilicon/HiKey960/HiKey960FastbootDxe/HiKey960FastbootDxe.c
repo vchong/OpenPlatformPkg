@@ -60,13 +60,13 @@
 typedef struct _FASTBOOT_PARTITION_LIST {
   LIST_ENTRY  Link;
   CHAR16      PartitionName[PARTITION_NAME_MAX_LENGTH];
-  EFI_HANDLE  PartitionHandle;
   EFI_LBA     StartingLBA;
   EFI_LBA     EndingLBA;
 } FASTBOOT_PARTITION_LIST;
 
-STATIC LIST_ENTRY mPartitionListHead;
-STATIC EFI_HANDLE mFlashHandle;
+STATIC LIST_ENTRY                       mPartitionListHead;
+STATIC EFI_HANDLE                       mFlashHandle;
+STATIC EFI_BLOCK_IO_PROTOCOL           *mFlashBlockIo;
 STATIC EFI_SIMPLE_TEXT_OUTPUT_PROTOCOL *mTextOut;
 
 /*
@@ -100,16 +100,22 @@ STATIC
 EFI_STATUS
 ReadPartitionEntries (
   IN  EFI_BLOCK_IO_PROTOCOL *BlockIo,
-  OUT EFI_PARTITION_ENTRY  **PartitionEntries
+  OUT EFI_PARTITION_ENTRY  **PartitionEntries,
+  OUT UINTN                 *PartitionNumbers
   )
 {
   UINT32                      MediaId;
   EFI_PARTITION_TABLE_HEADER *GptHeader;
+  EFI_PARTITION_ENTRY        *Entry;
   EFI_STATUS                  Status;
   VOID                       *Buffer;
   UINTN                       PageCount;
   UINTN                       BlockSize;
+  UINTN                       Count, EndLBA;
 
+  if ((PartitionEntries == NULL) || (PartitionNumbers == NULL)) {
+    return EFI_INVALID_PARAMETER;
+  }
   MediaId = BlockIo->Media->MediaId;
   BlockSize = BlockIo->Media->BlockSize;
 
@@ -139,7 +145,27 @@ ReadPartitionEntries (
     return EFI_DEVICE_ERROR;
   }
 
+  Entry = (EFI_PARTITION_ENTRY *)(Buffer + (2 * BlockSize));
+  EndLBA = GptHeader->FirstUsableLBA - 1;
+  Count = 0;
+  while (1) {
+    if ((Entry->StartingLBA > EndLBA) && (Entry->EndingLBA <= GptHeader->LastUsableLBA)) {
+      Count++;
+      EndLBA = Entry->EndingLBA;
+      Entry++;
+    } else {
+      break;
+    }
+  }
+  if (Count == 0) {
+    return EFI_INVALID_PARAMETER;
+  }
+  if (Count > GptHeader->NumberOfPartitionEntries) {
+    Count = GptHeader->NumberOfPartitionEntries;
+  }
+
   *PartitionEntries = (EFI_PARTITION_ENTRY *)((UINTN)Buffer + (2 * BlockSize));
+  *PartitionNumbers = Count;
   return EFI_SUCCESS;
 }
 
@@ -151,13 +177,8 @@ LoadPtable (
   EFI_STATUS                          Status;
   EFI_DEVICE_PATH_PROTOCOL           *FlashDevicePath;
   EFI_DEVICE_PATH_PROTOCOL           *FlashDevicePathDup;
-  EFI_DEVICE_PATH_PROTOCOL           *DevicePath;
-  EFI_DEVICE_PATH_PROTOCOL           *NextNode;
-  HARDDRIVE_DEVICE_PATH              *PartitionNode;
-  UINTN                               NumHandles;
-  EFI_HANDLE                         *AllHandles;
+  UINTN                               PartitionNumbers;
   UINTN                               LoopIndex;
-  EFI_BLOCK_IO_PROTOCOL              *FlashBlockIo;
   EFI_PARTITION_ENTRY                *PartitionEntries;
   FASTBOOT_PARTITION_LIST            *Entry;
 
@@ -180,10 +201,6 @@ LoadPtable (
   //
   FlashDevicePath = ConvertTextToDevicePath ((CHAR16*)FixedPcdGetPtr (PcdAndroidFastbootNvmDevicePath));
 
-  //
-  // Open the Disk IO protocol on the flash device - this will be used to read
-  // partition names out of the GPT entries
-  //
   // Create another device path pointer because LocateDevicePath will modify it.
   FlashDevicePathDup = FlashDevicePath;
   Status = gBS->LocateDevicePath (&gEfiBlockIoProtocolGuid, &FlashDevicePathDup, &mFlashHandle);
@@ -197,7 +214,7 @@ LoadPtable (
   Status = gBS->OpenProtocol (
                   mFlashHandle,
                   &gEfiBlockIoProtocolGuid,
-                  (VOID **) &FlashBlockIo,
+                  (VOID **) &mFlashBlockIo,
                   gImageHandle,
                   NULL,
                   EFI_OPEN_PROTOCOL_GET_PROTOCOL
@@ -208,98 +225,31 @@ LoadPtable (
   }
 
   // Read the GPT partition entry array into memory so we can get the partition names
-  Status = ReadPartitionEntries (FlashBlockIo, &PartitionEntries);
+  Status = ReadPartitionEntries (mFlashBlockIo, &PartitionEntries, &PartitionNumbers);
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "Warning: Failed to read partitions from Android NVM device (status: %r)\n", Status));
     // Failing to locate partitions should not prevent to do other Android FastBoot actions
     return EFI_SUCCESS;
   }
-
-  // Get every Block IO protocol instance installed in the system
-  Status = gBS->LocateHandleBuffer (
-                  ByProtocol,
-                  &gEfiBlockIoProtocolGuid,
-                  NULL,
-                  &NumHandles,
-                  &AllHandles
-                  );
-  ASSERT_EFI_ERROR (Status);
-
-  // Filter out handles that aren't children of the flash device
-  for (LoopIndex = 0; LoopIndex < NumHandles; LoopIndex++) {
-    // Get the device path for the handle
-    Status = gBS->OpenProtocol (
-                    AllHandles[LoopIndex],
-                    &gEfiDevicePathProtocolGuid,
-                    (VOID **) &DevicePath,
-                    gImageHandle,
-                    NULL,
-                    EFI_OPEN_PROTOCOL_GET_PROTOCOL
-                    );
-    ASSERT_EFI_ERROR (Status);
-
-    // Check if it is a sub-device of the flash device
-    if (!CompareMem (DevicePath, FlashDevicePath, FLASH_DEVICE_PATH_SIZE (FlashDevicePath))) {
-      // Device path is VenHw()/UFS()/HD(). Skip the first two level.
-      NextNode = NextDevicePathNode (DevicePath);
-      if (IsDevicePathEndType (NextNode)) {
-        continue;
-      }
-      NextNode = NextDevicePathNode (NextNode);
-      if (IsDevicePathEndType (NextNode)) {
-        continue;
-      }
-
-      PartitionNode = (HARDDRIVE_DEVICE_PATH *) NextNode;
-
-      // The firmware may install a handle for "partition 0", representing the
-      // whole device. Ignore it.
-      if ((PartitionNode->PartitionNumber == 0) || (PartitionNode->PartitionNumber > 128)) {
-        continue;
-      }
-
-      //
-      // Add the partition handle to the list
-      //
-
-      // Create entry
-      Entry = AllocatePool (sizeof (FASTBOOT_PARTITION_LIST));
-      if (Entry == NULL) {
-        Status = EFI_OUT_OF_RESOURCES;
-        FreePartitionList ();
-        goto Exit;
-      }
-
-      // Copy handle and partition name
-      Entry->PartitionHandle = AllHandles[LoopIndex];
-      StrnCpy (
-        Entry->PartitionName,
-        PartitionEntries[PartitionNode->PartitionNumber - 1].PartitionName, // Partition numbers start from 1.
-        PARTITION_NAME_MAX_LENGTH
-        );
-      Entry->StartingLBA = PartitionEntries[PartitionNode->PartitionNumber - 1].StartingLBA;
-      Entry->EndingLBA = PartitionEntries[PartitionNode->PartitionNumber - 1].EndingLBA;
-      InsertTailList (&mPartitionListHead, &Entry->Link);
-
-      // Print a debug message if the partition label is empty or looks like
-      // garbage.
-      if (!IS_ALPHA (Entry->PartitionName[0])) {
-        DEBUG ((DEBUG_ERROR,
-          "Warning: Partition %d doesn't seem to have a GPT partition label. "
-          "You won't be able to flash it with Fastboot.\n",
-          PartitionNode->PartitionNumber
-          ));
-        Status = EFI_INVALID_PARAMETER;
-        FreePartitionList ();
-        goto Exit;
-      }
+  for (LoopIndex = 0; LoopIndex < PartitionNumbers; LoopIndex++) {
+    // Create entry
+    Entry = AllocatePool (sizeof (FASTBOOT_PARTITION_LIST));
+    if (Entry == NULL) {
+      Status = EFI_OUT_OF_RESOURCES;
+      FreePartitionList ();
+      goto Exit;
     }
+    StrnCpy (
+      Entry->PartitionName,
+      PartitionEntries[LoopIndex].PartitionName,
+      PARTITION_NAME_MAX_LENGTH
+      );
+    Entry->StartingLBA = PartitionEntries[LoopIndex].StartingLBA;
+    Entry->EndingLBA = PartitionEntries[LoopIndex].EndingLBA;
+    InsertTailList (&mPartitionListHead, &Entry->Link);
   }
-
 Exit:
   FreePages ((VOID *)((UINTN)PartitionEntries - (2 * EFI_PAGE_SIZE)), EFI_SIZE_TO_PAGES (6 * EFI_PAGE_SIZE));
-  FreePool (FlashDevicePath);
-  FreePool (AllHandles);
   return Status;
 }
 
@@ -338,27 +288,13 @@ HiKey960FlashPtable (
   )
 {
   EFI_STATUS               Status;
-  EFI_BLOCK_IO_PROTOCOL   *FlashBlockIo;
-
-  Status = gBS->OpenProtocol (
-                  mFlashHandle,
-                  &gEfiBlockIoProtocolGuid,
-                  (VOID **) &FlashBlockIo,
-                  gImageHandle,
-                  NULL,
-                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
-                  );
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "Fastboot platform: Couldn't open Android NVM device (status: %r)\n", Status));
-    return EFI_DEVICE_ERROR;
-  }
-  Status = FlashBlockIo->WriteBlocks (
-                           FlashBlockIo,
-                           FlashBlockIo->Media->MediaId,
-                           0,
-                           Size,
-                           Image
-                           );
+  Status = mFlashBlockIo->WriteBlocks (
+                            mFlashBlockIo,
+                            mFlashBlockIo->Media->MediaId,
+                            0,
+                            Size,
+                            Image
+                            );
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "Failed to write (status:%r)\n", Status));
     return Status;
@@ -374,23 +310,10 @@ HiKey960ErasePtable (
   )
 {
   EFI_STATUS                  Status;
-  EFI_BLOCK_IO_PROTOCOL      *BlockIo;
 #if 0
   EFI_ERASE_BLOCK_PROTOCOL   *EraseBlockProtocol;
 #endif
 
-  Status = gBS->OpenProtocol (
-                  mFlashHandle,
-                  &gEfiBlockIoProtocolGuid,
-                  (VOID **) &BlockIo,
-                  gImageHandle,
-                  NULL,
-                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
-                  );
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "Fastboot platform: could not open Block IO: %r\n", Status));
-    return Status;
-  }
 #if 0
   Status = gBS->OpenProtocol (
                   mFlashHandle,
@@ -406,10 +329,10 @@ HiKey960ErasePtable (
   }
   Status = EraseBlockProtocol->EraseBlocks (
                                  EraseBlockProtocol,
-                                 BlockIo->Media->MediaId,
+                                 mFlashBlockIo->Media->MediaId,
                                  0,
                                  NULL,
-                                 6 * BlockIo->Media->BlockSize
+                                 6 * mFlashBlockIo->Media->BlockSize
                                  );
 #else
   {
@@ -419,9 +342,9 @@ HiKey960ErasePtable (
     DataPtr = AllocatePages (1);
     ZeroMem (DataPtr, EFI_PAGE_SIZE);
     for (Lba = 0; Lba < 6; Lba++) {
-      Status = BlockIo->WriteBlocks (
-                          BlockIo,
-                          BlockIo->Media->MediaId,
+      Status = mFlashBlockIo->WriteBlocks (
+                          mFlashBlockIo,
+                          mFlashBlockIo->Media->MediaId,
                           Lba,
                           EFI_PAGE_SIZE,
                           DataPtr
@@ -446,13 +369,12 @@ HiKey960FastbootPlatformFlashPartition (
   )
 {
   EFI_STATUS               Status;
-  EFI_BLOCK_IO_PROTOCOL   *BlockIo;
-  EFI_DISK_IO_PROTOCOL    *DiskIo;
-  UINT32                   MediaId;
   UINTN                    PartitionSize;
   FASTBOOT_PARTITION_LIST *Entry;
   CHAR16                   PartitionNameUnicode[60];
   BOOLEAN                  PartitionFound;
+  EFI_DISK_IO_PROTOCOL    *DiskIo;
+  UINTN                    BlockSize;
 
   // Support the pseudo partition name, such as "ptable".
   if (AsciiStrCmp (PartitionName, "ptable") == 0) {
@@ -475,21 +397,9 @@ HiKey960FastbootPlatformFlashPartition (
     return EFI_NOT_FOUND;
   }
 
-  Status = gBS->OpenProtocol (
-                  Entry->PartitionHandle,
-                  &gEfiBlockIoProtocolGuid,
-                  (VOID **) &BlockIo,
-                  gImageHandle,
-                  NULL,
-                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
-                  );
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "Fastboot platform: couldn't open Block IO for flash: %r\n", Status));
-    return EFI_NOT_FOUND;
-  }
-
   // Check image will fit on device
-  PartitionSize = (BlockIo->Media->LastBlock + 1) * BlockIo->Media->BlockSize;
+  BlockSize = mFlashBlockIo->Media->BlockSize;
+  PartitionSize = (Entry->EndingLBA - Entry->StartingLBA + 1) * BlockSize;
   if (PartitionSize < Size) {
     DEBUG ((DEBUG_ERROR, "Partition not big enough.\n"));
     DEBUG ((DEBUG_ERROR, "Partition Size:\t%ld\nImage Size:\t%ld\n", PartitionSize, Size));
@@ -497,10 +407,8 @@ HiKey960FastbootPlatformFlashPartition (
     return EFI_VOLUME_FULL;
   }
 
-  MediaId = BlockIo->Media->MediaId;
-
   Status = gBS->OpenProtocol (
-                  Entry->PartitionHandle,
+                  mFlashHandle,
                   &gEfiDiskIoProtocolGuid,
                   (VOID **) &DiskIo,
                   gImageHandle,
@@ -509,13 +417,19 @@ HiKey960FastbootPlatformFlashPartition (
                   );
   ASSERT_EFI_ERROR (Status);
 
-  Status = DiskIo->WriteDisk (DiskIo, MediaId, 0, Size, Image);
+  Status = DiskIo->WriteDisk (
+                     DiskIo,
+                     mFlashBlockIo->Media->MediaId,
+                     Entry->StartingLBA * BlockSize,
+                     Size,
+                     Image
+                     );
   if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "Failed to write %d bytes into 0x%x, Status:%r\n", Size, Image, Status));
+    DEBUG ((DEBUG_ERROR, "Failed to write %d bytes into 0x%x, Status:%r\n", Size, Entry->StartingLBA * BlockSize, Status));
     return Status;
   }
 
-  BlockIo->FlushBlocks(BlockIo);
+  mFlashBlockIo->FlushBlocks(mFlashBlockIo);
   MicroSecondDelay (50000);
 
   return Status;
@@ -534,7 +448,6 @@ HiKey960FastbootPlatformErasePartition (
   BOOLEAN                     PartitionFound;
   CHAR16                      PartitionNameUnicode[60];
   FASTBOOT_PARTITION_LIST    *Entry;
-  EFI_BLOCK_IO_PROTOCOL      *BlockIo;
 
   AsciiStrToUnicodeStr (PartitionName, PartitionNameUnicode);
 
@@ -557,18 +470,6 @@ HiKey960FastbootPlatformErasePartition (
     return EFI_NOT_FOUND;
   }
 
-  Status = gBS->OpenProtocol (
-                  Entry->PartitionHandle,
-                  &gEfiBlockIoProtocolGuid,
-                  (VOID **) &BlockIo,
-                  gImageHandle,
-                  NULL,
-                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
-                  );
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "Fastboot platform: could not open Block IO: %r\n", Status));
-    return Status;
-  }
 #if 1
   Status = gBS->OpenProtocol (
                   mFlashHandle,
@@ -581,10 +482,10 @@ HiKey960FastbootPlatformErasePartition (
   if (EFI_ERROR (Status)) {
     return Status;
   }
-  Size = (Entry->EndingLBA - Entry->StartingLBA + 1) * BlockIo->Media->BlockSize;
+  Size = (Entry->EndingLBA - Entry->StartingLBA + 1) * mFlashBlockIo->Media->BlockSize;
   Status = EraseBlockProtocol->EraseBlocks (
                                  EraseBlockProtocol,
-                                 BlockIo->Media->MediaId,
+                                 mFlashBlockIo->Media->MediaId,
                                  Entry->StartingLBA,
                                  NULL,
                                  Size
@@ -600,14 +501,13 @@ HiKey960FastbootPlatformErasePartition (
     }
     ZeroMem (DataPtr, EFI_PAGE_SIZE);
     for (Lba = 0; Lba < Entry->EndingLBA - Entry->StartingLBA; Lba++) {
-      Status = BlockIo->WriteBlocks (
-                          BlockIo,
-                          BlockIo->Media->MediaId,
-                          Lba,
-                          BlockIo->Media->BlockSize,
-                          DataPtr
-                          );
-DEBUG ((DEBUG_ERROR, "#%a, %d, Status:%r\n", __func__, __LINE__, Status));
+      Status = mFlashBlockIo->WriteBlocks (
+                                mFlashBlockIo,
+                                mFlashBlockIo->Media->MediaId,
+                                Lba,
+                                mFlashBlockIo->Media->BlockSize,
+                                DataPtr
+                                );
       if (EFI_ERROR (Status)) {
         goto Exit;
       }
@@ -625,8 +525,7 @@ HiKey960FastbootPlatformGetVar (
   OUT CHAR8   *Value
   )
 {
-  EFI_STATUS               Status;
-  EFI_BLOCK_IO_PROTOCOL   *BlockIo;
+  EFI_STATUS               Status = EFI_SUCCESS;
   UINT64                   PartitionSize;
   FASTBOOT_PARTITION_LIST *Entry;
   CHAR16                   PartitionNameUnicode[60];
@@ -658,21 +557,7 @@ HiKey960FastbootPlatformGetVar (
       return EFI_NOT_FOUND;
     }
 
-    Status = gBS->OpenProtocol (
-                    Entry->PartitionHandle,
-                    &gEfiBlockIoProtocolGuid,
-                    (VOID **) &BlockIo,
-                    gImageHandle,
-                    NULL,
-                    EFI_OPEN_PROTOCOL_GET_PROTOCOL
-                    );
-    if (EFI_ERROR (Status)) {
-      DEBUG ((DEBUG_ERROR, "Fastboot platform: couldn't open Block IO for flash: %r\n", Status));
-      *Value = '\0';
-      return EFI_NOT_FOUND;
-    }
-
-    PartitionSize = (BlockIo->Media->LastBlock + 1) * BlockIo->Media->BlockSize;
+    PartitionSize = (Entry->EndingLBA - Entry->StartingLBA + 1) * mFlashBlockIo->Media->BlockSize;
     DEBUG ((DEBUG_ERROR, "Fastboot platform: check for partition-size:%a 0X%llx\n", Name, PartitionSize ));
     AsciiSPrint (Value, 12, "0x%llx", PartitionSize);
   } else if ( !AsciiStrnCmp (Name, "partition-type", 14)) {
@@ -686,7 +571,7 @@ HiKey960FastbootPlatformGetVar (
   } else {
     *Value = '\0';
   }
-  return EFI_SUCCESS;
+  return Status;
 }
 
 EFI_STATUS
@@ -726,13 +611,12 @@ HiKey960FastbootPlatformFlashPartitionEx (
   )
 {
   EFI_STATUS               Status;
-  EFI_BLOCK_IO_PROTOCOL   *BlockIo;
-  EFI_DISK_IO_PROTOCOL    *DiskIo;
-  UINT32                   MediaId;
   UINTN                    PartitionSize;
   FASTBOOT_PARTITION_LIST *Entry;
   CHAR16                   PartitionNameUnicode[60];
   BOOLEAN                  PartitionFound;
+  UINTN                    BlockSize;
+  EFI_DISK_IO_PROTOCOL    *DiskIo;
 
   AsciiStrToUnicodeStr (PartitionName, PartitionNameUnicode);
   PartitionFound = FALSE;
@@ -750,21 +634,8 @@ HiKey960FastbootPlatformFlashPartitionEx (
     return EFI_NOT_FOUND;
   }
 
-  Status = gBS->OpenProtocol (
-                  Entry->PartitionHandle,
-                  &gEfiBlockIoProtocolGuid,
-                  (VOID **) &BlockIo,
-                  gImageHandle,
-                  NULL,
-                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
-                  );
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "Fastboot platform: couldn't open Block IO for flash: %r\n", Status));
-    return EFI_NOT_FOUND;
-  }
-
   // Check image will fit on device
-  PartitionSize = (BlockIo->Media->LastBlock + 1) * BlockIo->Media->BlockSize;
+  PartitionSize = (Entry->EndingLBA - Entry->StartingLBA + 1) * mFlashBlockIo->Media->BlockSize;
   if (PartitionSize < Size) {
     DEBUG ((DEBUG_ERROR, "Partition not big enough.\n"));
     DEBUG ((DEBUG_ERROR, "Partition Size:\t%ld\nImage Size:\t%ld\n", PartitionSize, Size));
@@ -772,19 +643,31 @@ HiKey960FastbootPlatformFlashPartitionEx (
     return EFI_VOLUME_FULL;
   }
 
-  MediaId = BlockIo->Media->MediaId;
+  BlockSize = mFlashBlockIo->Media->BlockSize;
 
   Status = gBS->OpenProtocol (
-                  Entry->PartitionHandle,
+                  mFlashHandle,
                   &gEfiDiskIoProtocolGuid,
                   (VOID **) &DiskIo,
                   gImageHandle,
                   NULL,
                   EFI_OPEN_PROTOCOL_GET_PROTOCOL
                   );
-  ASSERT_EFI_ERROR (Status);
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
 
-  Status = DiskIo->WriteDisk (DiskIo, MediaId, Offset, Size, Image);
+  Status = DiskIo->WriteDisk (
+                     DiskIo,
+                     mFlashBlockIo->Media->MediaId,
+                     Entry->StartingLBA * BlockSize + Offset,
+                     Size,
+                     Image
+                     );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Failed to write %d bytes into 0x%x, Status:%r\n", Size, Entry->StartingLBA * BlockSize + Offset, Status));
+    return Status;
+  }
   return Status;
 }
 
