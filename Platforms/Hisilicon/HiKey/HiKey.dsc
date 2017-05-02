@@ -83,6 +83,7 @@
   UefiDecompressLib|MdePkg/Library/BaseUefiDecompressLib/BaseUefiDecompressLib.inf
   UefiDriverEntryPoint|MdePkg/Library/UefiDriverEntryPoint/UefiDriverEntryPoint.inf
   UefiApplicationEntryPoint|MdePkg/Library/UefiApplicationEntryPoint/UefiApplicationEntryPoint.inf
+  UsbSerialNumberLib|OpenPlatformPkg/Library/UsbSerialNumberLib/UsbSerialNumberLib.inf
 
   PL011UartLib|ArmPlatformPkg/Drivers/PL011Uart/PL011Uart.inf
   SerialPortLib|ArmPlatformPkg/Library/PL011SerialPortLib/PL011SerialPortLib.inf

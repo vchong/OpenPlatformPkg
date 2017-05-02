@@ -31,12 +31,15 @@
 #include <Library/MemoryAllocationLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiRuntimeServicesTableLib.h>
+#include <Library/UsbSerialNumberLib.h>
 #include <Library/PrintLib.h>
 #include <Library/TimerLib.h>
 
-#include <Guid/HiKeyVariable.h>
-
 #define PARTITION_NAME_MAX_LENGTH (72/2)
+
+#define SERIAL_NUMBER_LBA                1024
+#define RANDOM_MAX                       0x7FFFFFFFFFFFFFFF
+#define RANDOM_MAGIC                     0x9A4DBEAF
 
 typedef struct _FASTBOOT_PARTITION_LIST {
   LIST_ENTRY  Link;
@@ -514,28 +517,19 @@ HiKeyFastbootPlatformGetVar (
   FASTBOOT_PARTITION_LIST *Entry;
   CHAR16                   PartitionNameUnicode[60];
   BOOLEAN                  PartitionFound;
-  CHAR16                   DataUnicode[17];
-  UINTN                    VariableSize;
+  CHAR16                   UnicodeSN[SERIAL_NUMBER_SIZE];
 
   if (!AsciiStrCmp (Name, "max-download-size")) {
     AsciiStrCpy (Value, FixedPcdGetPtr (PcdArmFastbootFlashLimit));
   } else if (!AsciiStrCmp (Name, "product")) {
     AsciiStrCpy (Value, FixedPcdGetPtr (PcdFirmwareVendor));
   } else if (!AsciiStrCmp (Name, "serialno")) {
-    VariableSize = 17 * sizeof (CHAR16);
-    Status = gRT->GetVariable (
-                    (CHAR16 *)L"SerialNo",
-                    &gHiKeyVariableGuid,
-                    NULL,
-                    &VariableSize,
-                    &DataUnicode
-                    );
+    Status = LoadSNFromBlock (mFlashHandle, SERIAL_NUMBER_LBA, UnicodeSN);
     if (EFI_ERROR (Status)) {
       *Value = '\0';
-      return EFI_NOT_FOUND;
+      return Status;
     }
-    DataUnicode[(VariableSize / sizeof(CHAR16)) - 1] = '\0';
-    UnicodeStrToAsciiStr (DataUnicode, Value);
+    UnicodeStrToAsciiStr (UnicodeSN, Value);
   } else if ( !AsciiStrnCmp (Name, "partition-size", 14)) {
     AsciiStrToUnicodeStr ((Name + 15), PartitionNameUnicode);
     PartitionFound = FALSE;
@@ -576,9 +570,20 @@ HiKeyFastbootPlatformOemCommand (
   IN  CHAR8   *Command
   )
 {
+  EFI_STATUS   Status;
+  CHAR16       UnicodeSN[SERIAL_NUMBER_SIZE];
+
   if (AsciiStrCmp (Command, "Demonstrate") == 0) {
     DEBUG ((DEBUG_ERROR, "ARM OEM Fastboot command 'Demonstrate' received.\n"));
     return EFI_SUCCESS;
+  } else if (AsciiStrCmp (Command, "serialno") == 0) {
+    Status = GenerateUsbSN (UnicodeSN);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "Failed to generate USB Serial Number.\n"));
+      return Status;
+    }
+    Status = StoreSNToBlock (mFlashHandle, SERIAL_NUMBER_LBA, UnicodeSN);
+    return Status;
   } else {
     DEBUG ((DEBUG_ERROR,
       "HiKey: Unrecognised Fastboot OEM command: %s\n",
