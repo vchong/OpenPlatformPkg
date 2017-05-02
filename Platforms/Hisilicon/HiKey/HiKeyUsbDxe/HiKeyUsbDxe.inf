@@ -29,6 +29,7 @@
   TimerLib
   UefiBootServicesTableLib
   UefiDriverEntryPoint
+  UsbSerialNumberLib
 
 [Protocols]
   gDwUsbProtocolGuid
@@ -36,11 +37,14 @@
   gEmbeddedGpioProtocolGuid
 
 [Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
   MdePkg/MdePkg.dec
   MdeModulePkg/MdeModulePkg.dec
-  EmbeddedPkg/EmbeddedPkg.dec
   OpenPlatformPkg/Drivers/Usb/DwUsbDxe/DwUsbDxe.dec
   OpenPlatformPkg/Platforms/Hisilicon/HiKey/HiKey.dec
+
+[Pcd]
+  gHiKeyTokenSpaceGuid.PcdAndroidFastbootNvmDevicePath
 
 [Depex]
   BEFORE gDwUsbDeviceGuid

@@ -14,11 +14,13 @@
 
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
+#include <Library/DevicePathLib.h>
 #include <Library/IoLib.h>
 #include <Library/TimerLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiLib.h>
 #include <Library/UefiRuntimeServicesTableLib.h>
+#include <Library/UsbSerialNumberLib.h>
 
 #include <Protocol/EmbeddedGpio.h>
 #include <Protocol/DwUsb.h>
@@ -33,6 +35,8 @@
 
 // Jumper on pin5-6 of J15 determines whether boot to fastboot
 #define DETECT_J15_FASTBOOT      24    // GPIO 3_0
+
+#define SERIAL_NUMBER_LBA        1024
 
 STATIC EMBEDDED_GPIO *mGpio;
 
@@ -222,18 +226,24 @@ HiKeyUsbGetSerialNo (
   OUT UINT8             *Length
   )
 {
-  UINTN                  VariableSize;
-  CHAR16                 DataUnicode[SERIAL_STRING_LENGTH];
+  EFI_STATUS                          Status;
+  EFI_DEVICE_PATH_PROTOCOL           *FlashDevicePath;
+  EFI_HANDLE                          FlashHandle;
+
+  FlashDevicePath = ConvertTextToDevicePath ((CHAR16*)FixedPcdGetPtr (PcdAndroidFastbootNvmDevicePath));
+  Status = gBS->LocateDevicePath (&gEfiBlockIoProtocolGuid, &FlashDevicePath, &FlashHandle);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Warning: Couldn't locate Android NVM device (status: %r)\n", Status));
+    // Failing to locate partitions should not prevent to do other Android FastBoot actions
+    return EFI_SUCCESS;
+  }
 
   if ((SerialNo == NULL) || (Length == NULL)) {
     return EFI_INVALID_PARAMETER;
   }
-  VariableSize = SERIAL_STRING_LENGTH * sizeof (CHAR16);
-  ZeroMem (DataUnicode, SERIAL_STRING_LENGTH * sizeof(CHAR16));
-  StrCpy (DataUnicode, L"0123456789abcdef");
-  CopyMem (SerialNo, DataUnicode, VariableSize);
-  *Length = VariableSize;
-  return EFI_SUCCESS;
+  Status = LoadSNFromBlock (FlashHandle, SERIAL_NUMBER_LBA, SerialNo);
+  *Length = StrSize (SerialNo);
+  return Status;
 }
 
 DW_USB_PROTOCOL mDwUsbDevice = {
