@@ -37,22 +37,8 @@
 #include <Library/PrintLib.h>
 #include <Library/TimerLib.h>
 
-#include <Guid/HiKey960Variable.h>
+#define PARTITION_NAME_MAX_LENGTH        (72/2)
 
-#define FLASH_DEVICE_PATH_SIZE(DevPath) ( GetDevicePathSize (DevPath) - \
-                                            sizeof (EFI_DEVICE_PATH_PROTOCOL))
-
-#define PARTITION_NAME_MAX_LENGTH 72/2
-
-#define IS_ALPHA(Char) (((Char) <= L'z' && (Char) >= L'a') || \
-                        ((Char) <= L'Z' && (Char) >= L'Z'))
-#define IS_HEXCHAR(Char) (((Char) <= L'9' && (Char) >= L'0') || \
-                          IS_ALPHA(Char))
-
-#define HIKEY_ERASE_SIZE                 (16 * 1024 * 1024)
-#define HIKEY_ERASE_BLOCKS               (HIKEY_ERASE_SIZE / EFI_PAGE_SIZE)
-
-#define SERIAL_NUMBER_BLOCK_SIZE         EFI_PAGE_SIZE
 #define SERIAL_NUMBER_LBA                20
 #define RANDOM_MAX                       0x7FFFFFFFFFFFFFFF
 #define RANDOM_MAGIC                     0x9A4DBEAF
@@ -249,7 +235,10 @@ LoadPtable (
     InsertTailList (&mPartitionListHead, &Entry->Link);
   }
 Exit:
-  FreePages ((VOID *)((UINTN)PartitionEntries - (2 * EFI_PAGE_SIZE)), EFI_SIZE_TO_PAGES (6 * EFI_PAGE_SIZE));
+  FreePages (
+    (VOID *)((UINTN)PartitionEntries - (2 * mFlashBlockIo->Media->BlockSize)),
+    EFI_SIZE_TO_PAGES (6 * mFlashBlockIo->Media->BlockSize)
+    );
   return Status;
 }
 
