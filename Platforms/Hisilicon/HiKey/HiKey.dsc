@@ -407,6 +407,8 @@
 
   MdeModulePkg/Universal/PCD/Dxe/Pcd.inf
 
+  OpenPlatformPkg/Platforms/Hisilicon/HiKey/HiKeyDxe/HiKeyDxe.inf
+
   #
   # GPIO
   #

@@ -114,6 +114,8 @@ READ_LOCK_STATUS   = TRUE
 
   INF MdeModulePkg/Universal/PCD/Dxe/Pcd.inf
 
+  INF OpenPlatformPkg/Platforms/Hisilicon/HiKey/HiKeyDxe/HiKeyDxe.inf
+
   #
   # GPIO
   #
