@@ -60,6 +60,7 @@
   MemoryAllocationLib|MdePkg/Library/UefiMemoryAllocationLib/UefiMemoryAllocationLib.inf
   SynchronizationLib|MdePkg/Library/BaseSynchronizationLib/BaseSynchronizationLib.inf
 
+  AbootimgLib|EmbeddedPkg/Library/AbootimgLib/AbootimgLib.inf
   FdtLib|EmbeddedPkg/Library/FdtLib/FdtLib.inf
   UefiBootManagerLib|MdeModulePkg/Library/UefiBootManagerLib/UefiBootManagerLib.inf
   PlatformBootManagerLib|OpenPlatformPkg/Platforms/Hisilicon/Library/PlatformBootManagerLib/PlatformBootManagerLib.inf
