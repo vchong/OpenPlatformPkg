@@ -36,6 +36,7 @@
   QuietBoot.c
 
 [Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
   IntelFrameworkModulePkg/IntelFrameworkModulePkg.dec
   MdeModulePkg/MdeModulePkg.dec
   MdePkg/MdePkg.dec
@@ -80,6 +81,7 @@
   gEfiTtyTermGuid
 
 [Protocols]
+  gEfiDevicePathFromTextProtocolGuid
   gEfiDevicePathProtocolGuid
   gEfiGraphicsOutputProtocolGuid
   gEfiLoadedImageProtocolGuid
@@ -87,3 +89,6 @@
   gEfiPciRootBridgeIoProtocolGuid
   gEfiSimpleFileSystemProtocolGuid
   gEfiDevicePathToTextProtocolGuid
+
+[Pcd]
+  gEmbeddedTokenSpaceGuid.PcdAndroidBootDevicePath
