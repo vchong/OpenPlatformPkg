@@ -22,6 +22,7 @@
   HiKey960Dxe.c
 
 [Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
   MdePkg/MdePkg.dec
   MdeModulePkg/MdeModulePkg.dec
   OpenPlatformPkg/Drivers/Block/DwUfsHcDxe/DwUfsHcDxe.dec
@@ -30,6 +31,7 @@
   BaseMemoryLib
   DebugLib
   DxeServicesTableLib
+  FdtLib
   IoLib
   NonDiscoverableDeviceRegistrationLib
   PcdLib
@@ -39,6 +41,9 @@
   UefiDriverEntryPoint
   UefiLib
   UefiRuntimeServicesTableLib
+
+[Protocols]
+  gAbootimgProtocolGuid
 
 [Guids]
   gEfiEndOfDxeEventGroupGuid

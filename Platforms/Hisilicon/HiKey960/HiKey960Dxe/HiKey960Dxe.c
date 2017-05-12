@@ -16,7 +16,9 @@
 
 #include <Hi3660.h>
 #include <Hkadc.h>
+#include <libfdt.h>
 
+#include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
 #include <Library/MemoryAllocationLib.h>
@@ -28,6 +30,7 @@
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiRuntimeServicesTableLib.h>
 
+#include <Protocol/Abootimg.h>
 #include <Protocol/NonDiscoverableDevice.h>
 
 #define ADC_ADCIN0                       0
@@ -59,6 +62,16 @@
 #define BOARDID_UNKNOW                   0xF
 
 #define BOARDID3_BASE                    5
+
+#define HIKEY960_BOARDID_V1              5300
+#define HIKEY960_BOARDID_V2              5301
+
+#define HIKEY960_COMPATIBLE_LEDS_V1      "gpio-leds_v1"
+#define HIKEY960_COMPATIBLE_LEDS_V2      "gpio-leds_v2"
+#define HIKEY960_COMPATIBLE_HUB_V1       "hisilicon,gpio_hubv1"
+#define HIKEY960_COMPATIBLE_HUB_V2       "hisilicon,gpio_hubv2"
+
+STATIC UINTN    mBoardId;
 
 STATIC
 VOID
@@ -241,6 +254,125 @@ OnEndOfDxe (
 
 EFI_STATUS
 EFIAPI
+AbootimgAppendKernelArgs (
+  IN CHAR16            *Args,
+  IN UINTN              Size
+  )
+{
+  if (Args == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+  if (mBoardId == HIKEY960_BOARDID_V1) {
+    StrCatS (Args, Size, L" earlycon=pl011,0xfdf05000,115200 console=ttyAMA5");
+  } else {
+    StrCatS (Args, Size, L" earlycon=pl011,0xfff32000,115200 console=ttyAMA6");
+  }
+  return EFI_SUCCESS;
+}
+
+EFI_STATUS
+EFIAPI
+AbootimgUpdateDtb (
+  IN  EFI_PHYSICAL_ADDRESS        OrigFdtBase,
+  OUT EFI_PHYSICAL_ADDRESS       *NewFdtBase
+  )
+{
+  //UINT8            *FdtPtr;
+  UINTN             FdtSize, NumPages;
+  INTN              err, offset;
+  EFI_STATUS        Status;
+
+  //
+  // Sanity checks on the original FDT blob.
+  //
+  err = fdt_check_header ((VOID*)(UINTN)OrigFdtBase);
+  if (err != 0) {
+    DEBUG ((DEBUG_ERROR, "ERROR: Device Tree header not valid (err:%d)\n", err));
+    return EFI_INVALID_PARAMETER;
+  }
+
+  //
+  // Store the FDT as Runtime Service Data to prevent the Kernel from
+  // overwritting its data.
+  //
+  FdtSize = fdt_totalsize ((VOID *)(UINTN)OrigFdtBase);
+  NumPages = EFI_SIZE_TO_PAGES (FdtSize) + 20;
+  Status = gBS->AllocatePages (
+                  AllocateAnyPages, EfiRuntimeServicesData,
+                  NumPages, NewFdtBase);
+  if (EFI_ERROR (Status)) {
+    return EFI_BUFFER_TOO_SMALL;
+  }
+
+  CopyMem (
+    (VOID*)(UINTN)*NewFdtBase,
+    (VOID*)(UINTN)OrigFdtBase,
+    FdtSize
+    );
+
+  if (mBoardId == HIKEY960_BOARDID_V1) {
+    offset = fdt_node_offset_by_compatible (
+               (VOID*)(UINTN)*NewFdtBase, -1, HIKEY960_COMPATIBLE_LEDS_V1
+               );
+  } else {
+    offset = fdt_node_offset_by_compatible (
+               (VOID*)(UINTN)*NewFdtBase, -1, HIKEY960_COMPATIBLE_LEDS_V2
+               );
+  }
+  if (offset < 0) {
+    DEBUG ((DEBUG_ERROR, "ERROR: Failed to find node with compatible (err:%d)\n", err));
+    gBS->FreePages (*NewFdtBase, NumPages);
+    return EFI_INVALID_PARAMETER;
+  }
+  err = fdt_setprop_string ((VOID*)(UINTN)*NewFdtBase, offset, "status", "ok");
+  if (err) {
+    DEBUG ((DEBUG_ERROR, "ERROR: Failed to update status property\n"));
+    return EFI_INVALID_PARAMETER;
+  }
+  err = fdt_set_name ((VOID*)(UINTN)*NewFdtBase, offset, "gpio-leds");
+  if (err) {
+    DEBUG ((DEBUG_ERROR, "ERROR: Failed to update compatible name\n"));
+    return EFI_INVALID_PARAMETER;
+  }
+
+  if (mBoardId == HIKEY960_BOARDID_V1) {
+    offset = fdt_node_offset_by_compatible (
+               (VOID*)(UINTN)*NewFdtBase, -1, HIKEY960_COMPATIBLE_HUB_V1
+               );
+  } else {
+    offset = fdt_node_offset_by_compatible (
+               (VOID*)(UINTN)*NewFdtBase, -1, HIKEY960_COMPATIBLE_HUB_V2
+               );
+  }
+  if (offset < 0) {
+    DEBUG ((DEBUG_ERROR, "ERROR: Failed to find node with compatible (err:%d)\n", err));
+    gBS->FreePages (*NewFdtBase, NumPages);
+    return EFI_INVALID_PARAMETER;
+  }
+  err = fdt_setprop_string ((VOID*)(UINTN)*NewFdtBase, offset, "status", "ok");
+  if (err) {
+    DEBUG ((DEBUG_ERROR, "ERROR: Failed to update status property\n"));
+    return EFI_INVALID_PARAMETER;
+  }
+
+  fdt_pack ((VOID*)(UINTN)*NewFdtBase);
+  err = fdt_check_header ((VOID*)(UINTN)*NewFdtBase);
+  if (err != 0) {
+    DEBUG ((DEBUG_ERROR, "ERROR: Device Tree header not valid (err:%d)\n", err));
+    gBS->FreePages (*NewFdtBase, NumPages);
+    return EFI_INVALID_PARAMETER;
+  }
+
+  return EFI_SUCCESS;
+}
+
+ABOOTIMG_PROTOCOL mAbootimg = {
+  AbootimgAppendKernelArgs,
+  AbootimgUpdateDtb
+};
+
+EFI_STATUS
+EFIAPI
 HiKey960EntryPoint (
   IN EFI_HANDLE         ImageHandle,
   IN EFI_SYSTEM_TABLE   *SystemTable
@@ -248,9 +380,8 @@ HiKey960EntryPoint (
 {
   EFI_STATUS            Status;
   EFI_EVENT             EndOfDxeEvent;
-  UINTN                 BoardId;
 
-  Status = InitBoardId (&BoardId);
+  Status = InitBoardId (&mBoardId);
   if (EFI_ERROR (Status)) {
     return Status;
   }
@@ -270,6 +401,9 @@ HiKey960EntryPoint (
                   &gEfiEndOfDxeEventGroupGuid,
                   &EndOfDxeEvent
                   );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
 
   // RegisterNonDicoverableMmioDevice
   Status = RegisterNonDiscoverableMmioDevice (
@@ -281,6 +415,16 @@ HiKey960EntryPoint (
              FixedPcdGet32 (PcdDwUfsHcDxeBaseAddress),
              SIZE_4KB
              );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Status = gBS->InstallProtocolInterface (
+                  &ImageHandle,
+                  &gAbootimgProtocolGuid,
+                  EFI_NATIVE_INTERFACE,
+                  &mAbootimg
+                  );
 
   return Status;
 }
