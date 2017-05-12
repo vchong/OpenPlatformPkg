@@ -13,6 +13,7 @@
 **/
 
 #include <Guid/EventGroup.h>
+#include <Guid/HiKey960Variable.h>
 
 #include <Hi3660.h>
 #include <Hkadc.h>
@@ -21,6 +22,7 @@
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
+#include <Library/DevicePathLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/NonDiscoverableDeviceRegistrationLib.h>
 #include <Library/IoLib.h>
@@ -31,6 +33,8 @@
 #include <Library/UefiRuntimeServicesTableLib.h>
 
 #include <Protocol/Abootimg.h>
+#include <Protocol/BlockIo.h>
+#include <Protocol/DevicePathToText.h>
 #include <Protocol/NonDiscoverableDevice.h>
 
 #define ADC_ADCIN0                       0
@@ -70,6 +74,18 @@
 #define HIKEY960_COMPATIBLE_LEDS_V2      "gpio-leds_v2"
 #define HIKEY960_COMPATIBLE_HUB_V1       "hisilicon,gpio_hubv1"
 #define HIKEY960_COMPATIBLE_HUB_V2       "hisilicon,gpio_hubv2"
+
+#define SERIAL_NUMBER_SIZE               17
+#define SERIAL_NUMBER_BLOCK_SIZE         EFI_PAGE_SIZE
+#define SERIAL_NUMBER_LBA                20
+#define RANDOM_MAX                       0x7FFFFFFFFFFFFFFF
+#define RANDOM_MAGIC                     0x9A4DBEAF
+
+typedef struct {
+  UINT64        Magic;
+  UINT64        Data;
+  CHAR16        UnicodeSN[SERIAL_NUMBER_SIZE];
+} RANDOM_SERIAL_NUMBER;
 
 STATIC UINTN    mBoardId;
 
@@ -259,15 +275,76 @@ AbootimgAppendKernelArgs (
   IN UINTN              Size
   )
 {
+  EFI_STATUS                  Status;
+  EFI_BLOCK_IO_PROTOCOL      *BlockIoProtocol;
+  VOID                       *DataPtr;
+  RANDOM_SERIAL_NUMBER       *RandomSN;
+  EFI_DEVICE_PATH_PROTOCOL   *FlashDevicePath;
+  EFI_HANDLE                  FlashHandle;
+
   if (Args == NULL) {
     return EFI_INVALID_PARAMETER;
   }
-  if (mBoardId == HIKEY960_BOARDID_V1) {
-    StrCatS (Args, Size, L" earlycon=pl011,0xfdf05000,115200 console=ttyAMA5");
-  } else {
-    StrCatS (Args, Size, L" earlycon=pl011,0xfff32000,115200 console=ttyAMA6");
+  FlashDevicePath = ConvertTextToDevicePath ((CHAR16*)FixedPcdGetPtr (PcdAndroidFastbootNvmDevicePath));
+  Status = gBS->LocateDevicePath (&gEfiBlockIoProtocolGuid, &FlashDevicePath, &FlashHandle);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Warning: Couldn't locate Android NVM device (status: %r)\n", Status));
+    // Failing to locate partitions should not prevent to do other Android FastBoot actions
+    return EFI_SUCCESS;
   }
+  Status = gBS->OpenProtocol (
+                  FlashHandle,
+                  &gEfiBlockIoProtocolGuid,
+                  (VOID **) &BlockIoProtocol,
+                  gImageHandle,
+                  NULL,
+                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "Warning: Couldn't open block device (status: %r)\n", Status));
+    return EFI_DEVICE_ERROR;
+  }
+
+  DataPtr = AllocatePages (1);
+  if (DataPtr == NULL) {
+    return EFI_BUFFER_TOO_SMALL;
+  }
+  Status = BlockIoProtocol->ReadBlocks (
+                              BlockIoProtocol,
+                              BlockIoProtocol->Media->MediaId,
+                              SERIAL_NUMBER_LBA,
+                              SERIAL_NUMBER_BLOCK_SIZE,
+                              DataPtr
+                              );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "Warning: Failed on reading blocks\n"));
+    goto Exit;
+  }
+  RandomSN = (RANDOM_SERIAL_NUMBER *)DataPtr;
+  if (RandomSN->Magic != RANDOM_MAGIC) {
+    UnicodeSPrint(
+      RandomSN->UnicodeSN, SERIAL_NUMBER_SIZE * sizeof (CHAR16),
+      L"0123456789abcdef"
+      );
+  }
+  if (mBoardId == HIKEY960_BOARDID_V1) {
+    UnicodeSPrint (
+      Args + StrLen (Args), Size - StrLen (Args),
+      L" earlycon=pl011,0xfdf05000,115200 console=ttyAMA5 androidboot.serialno=%s",
+      RandomSN->UnicodeSN
+      );
+  } else {
+    UnicodeSPrint (
+      Args + StrLen (Args), Size - StrLen (Args),
+      L" earlycon=pl011,0xfff32000,115200 console=ttyAMA6 androidboot.serialno=%s",
+      RandomSN->UnicodeSN
+      );
+  }
+  FreePages (DataPtr, 1);
   return EFI_SUCCESS;
+Exit:
+  FreePages (DataPtr, 1);
+  return Status;
 }
 
 EFI_STATUS

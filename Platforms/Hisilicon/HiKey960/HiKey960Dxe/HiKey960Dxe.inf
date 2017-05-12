@@ -26,6 +26,7 @@
   MdePkg/MdePkg.dec
   MdeModulePkg/MdeModulePkg.dec
   OpenPlatformPkg/Drivers/Block/DwUfsHcDxe/DwUfsHcDxe.dec
+  OpenPlatformPkg/Platforms/Hisilicon/HiKey960/HiKey960.dec
 
 [LibraryClasses]
   BaseMemoryLib
@@ -44,6 +45,8 @@
 
 [Protocols]
   gAbootimgProtocolGuid
+  gEfiBlockIoProtocolGuid
+  gEfiDevicePathToTextProtocolGuid
 
 [Guids]
   gEfiEndOfDxeEventGroupGuid
@@ -51,6 +54,7 @@
 
 [Pcd]
   gDwUfsHcDxeTokenSpaceGuid.PcdDwUfsHcDxeBaseAddress
+  gHiKey960TokenSpaceGuid.PcdAndroidFastbootNvmDevicePath
 
 [Depex]
   TRUE
