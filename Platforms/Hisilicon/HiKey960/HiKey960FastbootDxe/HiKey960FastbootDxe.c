@@ -351,6 +351,64 @@ Exit:
 }
 
 EFI_STATUS
+HiKey960FlashXloader (
+  IN UINTN   Size,
+  IN VOID   *Image
+  )
+{
+  EFI_STATUS                        Status;
+  EFI_DEVICE_PATH_PROTOCOL         *DevicePath;
+  EFI_HANDLE                        Handle;
+  EFI_BLOCK_IO_PROTOCOL            *BlockIo;
+  EFI_DISK_IO_PROTOCOL             *DiskIo;
+
+  DevicePath = ConvertTextToDevicePath ((CHAR16*)FixedPcdGetPtr (PcdXloaderDevicePath));
+
+  Status = gBS->LocateDevicePath (&gEfiBlockIoProtocolGuid, &DevicePath, &Handle);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Warning: Couldn't locate xloader device (status: %r)\n", Status));
+    return Status;
+  }
+
+  Status = gBS->OpenProtocol (
+                  Handle,
+                  &gEfiBlockIoProtocolGuid,
+                  (VOID **) &BlockIo,
+                  gImageHandle,
+                  NULL,
+                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Fastboot platform: Couldn't open xloader device (status: %r)\n", Status));
+    return EFI_DEVICE_ERROR;
+  }
+  Status = gBS->OpenProtocol (
+                  Handle,
+                  &gEfiDiskIoProtocolGuid,
+                  (VOID **) &DiskIo,
+                  gImageHandle,
+                  NULL,
+                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
+                  );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Status = DiskIo->WriteDisk (
+                     DiskIo,
+                     BlockIo->Media->MediaId,
+                     0,
+                     Size,
+                     Image
+                     );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Failed to write (status:%r)\n", Status));
+    return Status;
+  }
+  return Status;
+}
+
+EFI_STATUS
 HiKey960FastbootPlatformFlashPartition (
   IN CHAR8  *PartitionName,
   IN UINTN   Size,
@@ -368,6 +426,8 @@ HiKey960FastbootPlatformFlashPartition (
   // Support the pseudo partition name, such as "ptable".
   if (AsciiStrCmp (PartitionName, "ptable") == 0) {
     return HiKey960FlashPtable (Size, Image);
+  } else if (AsciiStrCmp (PartitionName, "xloader") == 0) {
+    return HiKey960FlashXloader (Size, Image);
   }
 
   AsciiStrToUnicodeStr (PartitionName, PartitionNameUnicode);
@@ -389,6 +449,7 @@ HiKey960FastbootPlatformFlashPartition (
   // Check image will fit on device
   BlockSize = mFlashBlockIo->Media->BlockSize;
   PartitionSize = (Entry->EndingLBA - Entry->StartingLBA + 1) * BlockSize;
+DEBUG ((DEBUG_ERROR, "#%a, %d, StartingLBA:0x%x, EndingLBA:0x%x\n", __func__, __LINE__, Entry->StartingLBA, Entry->EndingLBA));
   if (PartitionSize < Size) {
     DEBUG ((DEBUG_ERROR, "Partition not big enough.\n"));
     DEBUG ((DEBUG_ERROR, "Partition Size:\t%ld\nImage Size:\t%ld\n", PartitionSize, Size));

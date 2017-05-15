@@ -361,6 +361,7 @@
   gHiKey960TokenSpaceGuid.PcdAndroidFastbootNvmDevicePath|L"VenHw(0D51905B-B77E-452A-A2C0-ECA0CC8D514A,00003BFF0000000000)/UFS(0x0,0x3)"
   # Flash limit 128M/time, for memory concern
   gHiKey960TokenSpaceGuid.PcdArmFastbootFlashLimit|"134217728"
+  gHiKey960TokenSpaceGuid.PcdXloaderDevicePath|L"VenHw(0D51905B-B77E-452A-A2C0-ECA0CC8D514A,00003BFF0000000000)/UFS(0x0,0x0)"
 
   #
   # Android Loader

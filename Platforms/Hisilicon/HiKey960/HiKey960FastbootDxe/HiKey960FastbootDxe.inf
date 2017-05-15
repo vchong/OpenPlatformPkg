@@ -57,3 +57,4 @@
   gArmPlatformTokenSpaceGuid.PcdFirmwareVendor
   gHiKey960TokenSpaceGuid.PcdAndroidFastbootNvmDevicePath
   gHiKey960TokenSpaceGuid.PcdArmFastbootFlashLimit
+  gHiKey960TokenSpaceGuid.PcdXloaderDevicePath

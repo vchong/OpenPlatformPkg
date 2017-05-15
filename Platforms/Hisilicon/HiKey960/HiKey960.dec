@@ -36,3 +36,4 @@
 [PcdsFixedAtBuild.common]
   gHiKey960TokenSpaceGuid.PcdAndroidFastbootNvmDevicePath|L""|VOID*|0x00000001
   gHiKey960TokenSpaceGuid.PcdArmFastbootFlashLimit|L""|VOID*|0x00000002
+  gHiKey960TokenSpaceGuid.PcdXloaderDevicePath|L""|VOID*|0x00000003
