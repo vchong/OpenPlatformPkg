@@ -449,7 +449,6 @@ HiKey960FastbootPlatformFlashPartition (
   // Check image will fit on device
   BlockSize = mFlashBlockIo->Media->BlockSize;
   PartitionSize = (Entry->EndingLBA - Entry->StartingLBA + 1) * BlockSize;
-DEBUG ((DEBUG_ERROR, "#%a, %d, StartingLBA:0x%x, EndingLBA:0x%x\n", __func__, __LINE__, Entry->StartingLBA, Entry->EndingLBA));
   if (PartitionSize < Size) {
     DEBUG ((DEBUG_ERROR, "Partition not big enough.\n"));
     DEBUG ((DEBUG_ERROR, "Partition Size:\t%ld\nImage Size:\t%ld\n", PartitionSize, Size));
@@ -491,10 +490,8 @@ HiKey960FastbootPlatformErasePartition (
   )
 {
   EFI_STATUS                  Status;
-#if 1
   EFI_ERASE_BLOCK_PROTOCOL   *EraseBlockProtocol;
   UINTN                       Size;
-#endif
   BOOLEAN                     PartitionFound;
   CHAR16                      PartitionNameUnicode[60];
   FASTBOOT_PARTITION_LIST    *Entry;
@@ -520,7 +517,6 @@ HiKey960FastbootPlatformErasePartition (
     return EFI_NOT_FOUND;
   }
 
-#if 1
   Status = gBS->OpenProtocol (
                   mFlashHandle,
                   &gEfiEraseBlockProtocolGuid,
@@ -540,32 +536,6 @@ HiKey960FastbootPlatformErasePartition (
                                  NULL,
                                  Size
                                  );
-#else
-  {
-    UINTN     Lba;
-    VOID     *DataPtr;
-
-    DataPtr = AllocatePages (1);
-    if (DataPtr == NULL) {
-      return EFI_BUFFER_TOO_SMALL;
-    }
-    ZeroMem (DataPtr, EFI_PAGE_SIZE);
-    for (Lba = 0; Lba < Entry->EndingLBA - Entry->StartingLBA; Lba++) {
-      Status = mFlashBlockIo->WriteBlocks (
-                                mFlashBlockIo,
-                                mFlashBlockIo->Media->MediaId,
-                                Lba,
-                                mFlashBlockIo->Media->BlockSize,
-                                DataPtr
-                                );
-      if (EFI_ERROR (Status)) {
-        goto Exit;
-      }
-    }
-Exit:
-    FreePages (DataPtr, 1);
-  }
-#endif
   return Status;
 }
 
