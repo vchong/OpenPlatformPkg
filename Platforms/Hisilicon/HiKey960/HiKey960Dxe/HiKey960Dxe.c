@@ -396,10 +396,10 @@ AbootimgUpdateDtb (
                (VOID*)(UINTN)*NewFdtBase, -1, HIKEY960_COMPATIBLE_LEDS_V2
                );
   }
+  // Ignore it if can't find LED compatible
   if (offset < 0) {
-    DEBUG ((DEBUG_ERROR, "ERROR: Failed to find node with compatible (err:%d)\n", err));
-    gBS->FreePages (*NewFdtBase, NumPages);
-    return EFI_INVALID_PARAMETER;
+    DEBUG ((DEBUG_WARN, "WARN: Failed to find node with compatible (err:%d)\n", err));
+    goto Exit;
   }
   err = fdt_setprop_string ((VOID*)(UINTN)*NewFdtBase, offset, "status", "ok");
   if (err) {
@@ -421,10 +421,10 @@ AbootimgUpdateDtb (
                (VOID*)(UINTN)*NewFdtBase, -1, HIKEY960_COMPATIBLE_HUB_V2
                );
   }
+  // Ignore it if can't find LED compatible
   if (offset < 0) {
-    DEBUG ((DEBUG_ERROR, "ERROR: Failed to find node with compatible (err:%d)\n", err));
-    gBS->FreePages (*NewFdtBase, NumPages);
-    return EFI_INVALID_PARAMETER;
+    DEBUG ((DEBUG_WARN, "WARN: Failed to find node with compatible (err:%d)\n", err));
+    goto Exit;
   }
   err = fdt_setprop_string ((VOID*)(UINTN)*NewFdtBase, offset, "status", "ok");
   if (err) {
@@ -432,6 +432,7 @@ AbootimgUpdateDtb (
     return EFI_INVALID_PARAMETER;
   }
 
+Exit:
   fdt_pack ((VOID*)(UINTN)*NewFdtBase);
   err = fdt_check_header ((VOID*)(UINTN)*NewFdtBase);
   if (err != 0) {
