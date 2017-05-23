@@ -270,12 +270,10 @@ HiKeyFlashPtable (
   )
 {
   EFI_STATUS               Status;
-  UINTN                    BlockSize;
   EFI_DISK_IO_PROTOCOL    *DiskIo;
   UINT32                   MediaId;
 
   MediaId = mFlashBlockIo->Media->MediaId;
-  BlockSize = mFlashBlockIo->Media->BlockSize;
   Status = gBS->OpenProtocol (
                   mFlashHandle,
                   &gEfiDiskIoProtocolGuid,
