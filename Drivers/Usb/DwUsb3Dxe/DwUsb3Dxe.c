@@ -778,6 +778,7 @@ DwUsb3GetDeviceSpeed (
     break;
   default:
     DEBUG ((DEBUG_ERROR, "DwUsb3GetDeviceSpeed: invalid DSTS:0x%x\n", Data));
+    Speed = USB_SPEED_UNKNOWN;
     break;
   }
   return Speed;
