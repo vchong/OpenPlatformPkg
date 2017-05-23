@@ -36,6 +36,7 @@
   DebugLib
   DxeServicesLib
   DxeServicesTableLib
+  FdtLib
   IoLib
   PcdLib
   PrintLib
@@ -46,9 +47,16 @@
   UefiLib
   UefiDriverEntryPoint
 
+[Protocols]
+  gAbootimgProtocolGuid
+  gEfiBlockIoProtocolGuid
+
 [Guids]
   gEfiEndOfDxeEventGroupGuid
   gEfiFileInfoGuid
+
+[Pcd]
+  gHiKeyTokenSpaceGuid.PcdAndroidFastbootNvmDevicePath
 
 [Depex]
   TRUE
