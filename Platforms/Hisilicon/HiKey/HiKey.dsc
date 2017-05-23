@@ -287,6 +287,9 @@
   gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareBase|0x30020000
   gEfiMdeModulePkgTokenSpaceGuid.PcdFlashNvStorageFtwSpareSize|0x00010000
 
+  # TimerPeriod
+  gEmbeddedTokenSpaceGuid.PcdTimerPeriod|1000
+
   # System Memory (1GB)
   gArmTokenSpaceGuid.PcdSystemMemoryBase|0x00000000
   gArmTokenSpaceGuid.PcdSystemMemorySize|0x3E000000
