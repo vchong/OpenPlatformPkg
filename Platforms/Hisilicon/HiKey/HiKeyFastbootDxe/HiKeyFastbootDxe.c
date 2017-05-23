@@ -270,10 +270,8 @@ HiKeyFlashPtable (
   )
 {
   EFI_STATUS               Status;
-  VOID                    *Buffer;
   UINTN                    BlockSize;
   EFI_DISK_IO_PROTOCOL    *DiskIo;
-  UINT32                   EntrySize, EntryOffset;
   UINT32                   MediaId;
 
   MediaId = mFlashBlockIo->Media->MediaId;
@@ -289,58 +287,12 @@ HiKeyFlashPtable (
   if (EFI_ERROR (Status)) {
     return Status;
   }
-  Buffer = Image;
-  if (AsciiStrnCmp (Buffer, "ENTRYHDR", 8) != 0) {
-    DEBUG ((EFI_D_ERROR, "unknown ptable image\n"));
-    return EFI_UNSUPPORTED;
-  }
-  Buffer += 8;
-  if (AsciiStrnCmp (Buffer, "primary", 7) != 0) {
-    DEBUG ((EFI_D_ERROR, "unknown ptable imag\n"));
-    return EFI_UNSUPPORTED;
-  }
-  Buffer += 8;
-  EntryOffset = *(UINT32 *)Buffer * BlockSize;
-  Buffer += 4;
-  EntrySize = *(UINT32 *)Buffer * BlockSize;
-  if ((EntrySize + BlockSize) > Size) {
-    DEBUG ((DEBUG_ERROR, "Entry size doesn't match\n"));
-    return EFI_UNSUPPORTED;
-  }
-  Buffer = Image + BlockSize;
-  Status = DiskIo->WriteDisk (DiskIo, MediaId, EntryOffset, EntrySize, Buffer);
+  Status = DiskIo->WriteDisk (DiskIo, MediaId, 0, Size, Image);
   if (EFI_ERROR (Status)) {
     return Status;
   }
   FreePartitionList ();
   Status = LoadPtable ();
-  if (EFI_ERROR (Status)) {
-    return Status;
-  }
-
-  Buffer = Image + 16 + 12;
-  if (AsciiStrnCmp (Buffer, "ENTRYHDR", 8) != 0) {
-    return Status;
-  }
-  Buffer += 8;
-  if (AsciiStrnCmp (Buffer, "second", 6) != 0) {
-    return Status;
-  }
-  Buffer += 8;
-  EntryOffset = *(UINT32 *)Buffer * BlockSize;
-  Buffer += 4;
-  EntrySize = *(UINT32 *)Buffer * BlockSize;
-  if ((EntrySize + BlockSize) > Size) {
-    DEBUG ((DEBUG_ERROR, "Entry size doens't match\n"));
-    return EFI_UNSUPPORTED;
-  }
-  Buffer = Image + BlockSize;
-  Status = DiskIo->WriteDisk (DiskIo, MediaId, EntryOffset, EntrySize, Buffer);
-  if (EFI_ERROR (Status)) {
-    return Status;
-  }
-  mFlashBlockIo->FlushBlocks (mFlashBlockIo);
-  MicroSecondDelay (50000);
   return Status;
 }
 
