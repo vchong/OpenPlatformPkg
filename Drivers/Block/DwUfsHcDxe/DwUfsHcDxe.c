@@ -403,7 +403,7 @@ UfsHcMmioWrite (
   )
 {
   UFS_HOST_CONTROLLER_PRIVATE_DATA  *Private;
-  EFI_STATUS                        Status;
+  EFI_STATUS                        Status = EFI_SUCCESS;
   UINTN                             Index;
 
   Private  = UFS_HOST_CONTROLLER_PRIVATE_DATA_FROM_UFSHC (This);
