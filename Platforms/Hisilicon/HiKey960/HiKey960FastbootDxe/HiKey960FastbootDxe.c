@@ -163,9 +163,9 @@ LoadPtable (
   EFI_STATUS                          Status;
   EFI_DEVICE_PATH_PROTOCOL           *FlashDevicePath;
   EFI_DEVICE_PATH_PROTOCOL           *FlashDevicePathDup;
-  UINTN                               PartitionNumbers;
+  UINTN                               PartitionNumbers = 0;
   UINTN                               LoopIndex;
-  EFI_PARTITION_ENTRY                *PartitionEntries;
+  EFI_PARTITION_ENTRY                *PartitionEntries = NULL;
   FASTBOOT_PARTITION_LIST            *Entry;
 
   InitializeListHead (&mPartitionListHead);
