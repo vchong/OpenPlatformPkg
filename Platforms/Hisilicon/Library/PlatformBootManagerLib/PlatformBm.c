@@ -337,11 +337,9 @@ PlatformRegisterBootGrub (
   )
 {
   EFI_STATUS                           Status;
-  EFI_HANDLE                           Handle;
   CHAR16                              *BootPathStr;
   EFI_DEVICE_PATH_FROM_TEXT_PROTOCOL  *EfiDevicePathFromTextProtocol;
   EFI_DEVICE_PATH                     *DevicePath;
-  EFI_DEVICE_PATH                     *TmpDevicePath;
   EFI_DEVICE_PATH                     *FileDevicePath;
   FILEPATH_DEVICE_PATH                *FilePath;
   UINTN                                Size;
@@ -359,13 +357,7 @@ PlatformRegisterBootGrub (
   ASSERT_EFI_ERROR(Status);
   DevicePath = (EFI_DEVICE_PATH *)EfiDevicePathFromTextProtocol->ConvertTextToDevicePath (BootPathStr);
   ASSERT (DevicePath != NULL);
-  Status = gBS->LocateDevicePath (&gEfiDevicePathProtocolGuid, &DevicePath, &Handle);
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "Failed to locate device path:%s\n", BootPathStr));
-    return;
-  }
-  TmpDevicePath = DevicePathFromHandle (Handle);
-  DevicePath = AppendDevicePathNode (TmpDevicePath, DevicePath);
+
   Size = StrSize (GRUB_FILE_NAME);
   FileDevicePath = AllocatePool (Size + SIZE_OF_FILEPATH_DEVICE_PATH + END_DEVICE_PATH_LENGTH);
   if (FileDevicePath != NULL) {
