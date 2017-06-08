@@ -43,7 +43,7 @@
 #define PARTITION_NAME_MAX_LENGTH 72/2
 
 #define IS_ALPHA(Char) (((Char) <= L'z' && (Char) >= L'a') || \
-                        ((Char) <= L'Z' && (Char) >= L'Z'))
+                        ((Char) <= L'Z' && (Char) >= L'A'))
 #define IS_HEXCHAR(Char) (((Char) <= L'9' && (Char) >= L'0') || \
                           IS_ALPHA(Char))
 
