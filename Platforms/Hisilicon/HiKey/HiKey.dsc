@@ -410,13 +410,18 @@
 
   MdeModulePkg/Universal/PCD/Dxe/Pcd.inf
 
-  OpenPlatformPkg/Platforms/Hisilicon/HiKey/HiKeyDxe/HiKeyDxe.inf
-
   #
   # GPIO
   #
   ArmPlatformPkg/Drivers/PL061GpioDxe/PL061GpioDxe.inf
   OpenPlatformPkg/Platforms/Hisilicon/HiKey/HiKeyGpioDxe/HiKeyGpioDxe.inf
+
+  #
+  # GPIO Keyboard
+  #
+  OpenPlatformPkg/Drivers/Keyboard/GpioKeyboardDxe/GpioKeyboardDxe.inf
+
+  OpenPlatformPkg/Platforms/Hisilicon/HiKey/HiKeyDxe/HiKeyDxe.inf
 
   #
   # MMC/SD

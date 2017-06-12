@@ -26,6 +26,7 @@
 
 #include <Protocol/Abootimg.h>
 #include <Protocol/BlockIo.h>
+#include <Protocol/PlatformGpioKeyboard.h>
 
 #include <Hi6220.h>
 #include <libfdt.h>
@@ -37,6 +38,8 @@
 #define SERIAL_NUMBER_LBA                1024
 #define RANDOM_MAX                       0x7FFFFFFFFFFFFFFF
 #define RANDOM_MAGIC                     0x9A4DBEAF
+
+#define DETECT_J15_FASTBOOT              24   // GPIO3_0
 
 typedef struct {
   UINT64        Magic;
@@ -106,6 +109,10 @@ HiKeyInitPeripherals (
 
   UartInit ();
   MtcmosInit ();
+
+  /* Set DETECT_J15_FASTBOOT (GPIO24) pin as GPIO function */
+  MmioWrite32 (0xf7010950, 0);        /* configure GPIO24 as nopull */
+  MmioWrite32 (0xf7010140, 0);        /* configure GPIO24 as GPIO */
 
   return EFI_SUCCESS;
 }
@@ -237,6 +244,28 @@ ABOOTIMG_PROTOCOL mAbootimg = {
 
 EFI_STATUS
 EFIAPI
+GpioKeyboardRegister (
+  IN OUT GPIO_KBD_KEY                       *GpioKey
+  )
+{
+  if (GpioKey == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+  GpioKey->Signature = GPIO_KBD_KEY_NEXT_SIGNATURE;
+  GpioKey->Pin = DETECT_J15_FASTBOOT;
+  GpioKey->Value = 0;
+  GpioKey->Key.ScanCode = SCAN_NULL;
+  GpioKey->Key.UnicodeChar = L'f';
+  InitializeListHead (&GpioKey->Next);
+  return EFI_SUCCESS;
+}
+
+PLATFORM_GPIO_KBD_PROTOCOL mGpioKeyboard = {
+  GpioKeyboardRegister
+};
+
+EFI_STATUS
+EFIAPI
 HiKeyEntryPoint (
   IN EFI_HANDLE         ImageHandle,
   IN EFI_SYSTEM_TABLE   *SystemTable
@@ -255,5 +284,16 @@ HiKeyEntryPoint (
                   EFI_NATIVE_INTERFACE,
                   &mAbootimg
                   );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Status = gBS->InstallProtocolInterface (
+                  &ImageHandle,
+                  &gPlatformGpioKeyboardProtocolGuid,
+                  EFI_NATIVE_INTERFACE,
+                  &mGpioKeyboard
+                  );
+DEBUG ((DEBUG_ERROR, "#%a, %d, Status:%r\n", __func__, __LINE__, Status));
   return Status;
 }
