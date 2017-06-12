@@ -41,7 +41,8 @@ STATIC struct HiKey960ReservedMemory {
   EFI_PHYSICAL_ADDRESS         Size;
 } HiKey960ReservedMemoryBuffer [] = {
   { 0x1AC00000, 0x00098000 },    // ARM-TF reserved
-  { 0x21F00000, 0x00100000 },    // PSTORE/RAMOOPS
+  { 0x32000000, 0x00100000 },    // PSTORE/RAMOOPS
+  { 0x32100000, 0x00001000 },    // ADB REBOOT "REASON"
   { 0x3E000000, 0x02000000 },    // TEE OS
 #if 0
   { 0x89280000, 0x00100000 },    // lpmx-core
