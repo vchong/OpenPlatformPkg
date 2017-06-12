@@ -1,0 +1,62 @@
+## @file
+# Gpio Keyboard driver.
+#
+# Copyright (c) 2017, Linaro Ltd. All rights reserved.<BR>
+#
+# This program and the accompanying materials
+# are licensed and made available under the terms and conditions
+# of the BSD License which accompanies this distribution.  The
+# full text of the license may be found at
+# http://opensource.org/licenses/bsd-license.php
+#
+# THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+# WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
+#
+##
+
+[Defines]
+  INF_VERSION                    = 0x00010019
+  BASE_NAME                      = GpioKeyboardDxe
+  FILE_GUID                      = d1927a35-11fa-44d0-9d91-dace09225d8d
+  MODULE_TYPE                    = UEFI_DRIVER
+  VERSION_STRING                 = 1.0
+  ENTRY_POINT                    = InitializeGpioKeyboard
+
+#
+# The following information is for reference only and not required by the build tools.
+#
+#  VALID_ARCHITECTURES           = AARCH64
+#
+#  DRIVER_BINDING                = gGpioKeyboardDriverBinding
+#  COMPONENT_NAME                = gGpioKeyboardComponentName
+#
+
+[Sources.common]
+  ComponentName.c
+  GpioKeyboard.c
+
+[Packages]
+  EmbeddedPkg/EmbeddedPkg.dec
+  MdePkg/MdePkg.dec
+  MdeModulePkg/MdeModulePkg.dec
+  OpenPlatformPkg/Drivers/Keyboard/GpioKeyboardDxe/GpioKeyboardDxe.dec
+
+[LibraryClasses]
+  BaseLib
+  BaseMemoryLib
+  DebugLib
+  IoLib
+  ReportStatusCodeLib
+  UefiDriverEntryPoint
+  UefiBootServicesTableLib
+  UefiLib
+
+[Protocols]
+  gEfiDriverBindingProtocolGuid
+  gEfiSimpleTextInProtocolGuid
+  gEfiSimpleTextInputExProtocolGuid
+  gEmbeddedGpioProtocolGuid
+  gPlatformGpioKeyboardProtocolGuid
+
+[Depex]
+  TRUE
