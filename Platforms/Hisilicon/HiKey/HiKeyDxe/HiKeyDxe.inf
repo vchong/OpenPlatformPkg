@@ -29,6 +29,7 @@
   MdePkg/MdePkg.dec
   MdeModulePkg/MdeModulePkg.dec
   OpenPlatformPkg/Drivers/Keyboard/GpioKeyboardDxe/GpioKeyboardDxe.dec
+  OpenPlatformPkg/Drivers/Keyboard/RamKeyboardDxe/RamKeyboardDxe.dec
   OpenPlatformPkg/Platforms/Hisilicon/HiKey/HiKey.dec
 
 [LibraryClasses]
@@ -52,6 +53,7 @@
   gAbootimgProtocolGuid
   gEfiBlockIoProtocolGuid
   gPlatformGpioKeyboardProtocolGuid
+  gPlatformRamKeyboardProtocolGuid
 
 [Guids]
   gEfiEndOfDxeEventGroupGuid

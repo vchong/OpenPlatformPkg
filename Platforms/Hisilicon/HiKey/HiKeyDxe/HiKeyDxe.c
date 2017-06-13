@@ -27,6 +27,7 @@
 #include <Protocol/Abootimg.h>
 #include <Protocol/BlockIo.h>
 #include <Protocol/PlatformGpioKeyboard.h>
+#include <Protocol/PlatformRamKeyboard.h>
 
 #include <Hi6220.h>
 #include <libfdt.h>
@@ -40,6 +41,11 @@
 #define RANDOM_MAGIC                     0x9A4DBEAF
 
 #define DETECT_J15_FASTBOOT              24   // GPIO3_0
+
+#define ADB_REBOOT_ADDRESS               0x05F01000
+#define ADB_REBOOT_BOOTLOADER            0x77665500
+#define ADB_REBOOT_NONE                  0x77665501
+
 
 typedef struct {
   UINT64        Magic;
@@ -266,6 +272,56 @@ PLATFORM_GPIO_KBD_PROTOCOL mGpioKeyboard = {
 
 EFI_STATUS
 EFIAPI
+RamKeyboardRegister (
+  IN OUT RAM_KBD_KEY                         *RamKey
+  )
+{
+  if (RamKey == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+  RamKey->Signature = RAM_KBD_KEY_NEXT_SIGNATURE;
+  RamKey->Base = ADB_REBOOT_ADDRESS;
+  RamKey->Key.ScanCode = SCAN_NULL;
+  RamKey->Key.UnicodeChar = L'f';
+  return EFI_SUCCESS;
+}
+
+BOOLEAN
+EFIAPI
+RamKeyboardQuery (
+  IN RAM_KBD_KEY                             *RamKey
+  )
+{
+  if ((RamKey == NULL) || (RamKey->Base == 0)) {
+    return FALSE;
+  }
+  if (MmioRead32 (RamKey->Base) != ADB_REBOOT_BOOTLOADER) {
+    return FALSE;
+  }
+  return TRUE;
+}
+
+EFI_STATUS
+EFIAPI
+RamKeyboardClear (
+  IN RAM_KBD_KEY                             *RamKey
+  )
+{
+  if ((RamKey == NULL) || (RamKey->Base == 0)) {
+    return FALSE;
+  }
+  MmioWrite32 (RamKey->Base, ADB_REBOOT_NONE);
+  return EFI_SUCCESS;
+}
+
+PLATFORM_RAM_KBD_PROTOCOL mRamKeyboard = {
+  RamKeyboardRegister,
+  RamKeyboardQuery,
+  RamKeyboardClear
+};
+
+EFI_STATUS
+EFIAPI
 HiKeyEntryPoint (
   IN EFI_HANDLE         ImageHandle,
   IN EFI_SYSTEM_TABLE   *SystemTable
@@ -294,6 +350,15 @@ HiKeyEntryPoint (
                   EFI_NATIVE_INTERFACE,
                   &mGpioKeyboard
                   );
-DEBUG ((DEBUG_ERROR, "#%a, %d, Status:%r\n", __func__, __LINE__, Status));
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Status = gBS->InstallProtocolInterface (
+                  &ImageHandle,
+                  &gPlatformRamKeyboardProtocolGuid,
+                  EFI_NATIVE_INTERFACE,
+                  &mRamKeyboard
+                  );
   return Status;
 }

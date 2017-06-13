@@ -125,6 +125,11 @@ READ_LOCK_STATUS   = TRUE
   #
   INF OpenPlatformPkg/Drivers/Keyboard/GpioKeyboardDxe/GpioKeyboardDxe.inf
 
+  #
+  # RAM Keyboard
+  #
+  INF OpenPlatformPkg/Drivers/Keyboard/RamKeyboardDxe/RamKeyboardDxe.inf
+
   INF OpenPlatformPkg/Platforms/Hisilicon/HiKey/HiKeyDxe/HiKeyDxe.inf
 
   #
