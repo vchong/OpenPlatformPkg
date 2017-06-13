@@ -14,14 +14,13 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
-#ifndef _GPIO_KEYBOARD_H_
-#define _GPIO_KEYBOARD_H_
+#ifndef _VIRTUAL_KEYBOARD_H_
+#define _VIRTUAL_KEYBOARD_H_
 
 
 #include <Guid/StatusCodeDataTypeId.h>
 #include <Protocol/DevicePath.h>
-#include <Protocol/EmbeddedGpio.h>
-#include <Protocol/PlatformGpioKeyboard.h>
+#include <Protocol/PlatformVirtualKeyboard.h>
 #include <Protocol/SimpleTextIn.h>
 #include <Protocol/SimpleTextInEx.h>
 
@@ -36,18 +35,16 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 #include <Library/UefiDriverEntryPoint.h>
 #include <Library/UefiLib.h>
 
-//#include <IndustryStandard/Pci.h>
-
 //
 // Driver Binding Externs
 //
-extern EFI_DRIVER_BINDING_PROTOCOL  gGpioKeyboardDriverBinding;
-extern EFI_COMPONENT_NAME_PROTOCOL  gGpioKeyboardComponentName;
-extern EFI_COMPONENT_NAME2_PROTOCOL gGpioKeyboardComponentName2;
+extern EFI_DRIVER_BINDING_PROTOCOL  gVirtualKeyboardDriverBinding;
+extern EFI_COMPONENT_NAME_PROTOCOL  gVirtualKeyboardComponentName;
+extern EFI_COMPONENT_NAME2_PROTOCOL gVirtualKeyboardComponentName2;
 
 
 //
-// GPIO Keyboard Defines
+// VIRTUAL Keyboard Defines
 //
 #define CHAR_SCANCODE                   0xe0
 #define CHAR_ESC                        0x1b
@@ -60,17 +57,17 @@ extern EFI_COMPONENT_NAME2_PROTOCOL gGpioKeyboardComponentName2;
 #define QUEUE_MAX_COUNT                 32
 
 //
-// GPIO Keyboard Device Structure
+// VIRTUAL Keyboard Device Structure
 //
-#define GPIO_KEYBOARD_DEV_SIGNATURE SIGNATURE_32 ('G', 'K', 'B', 'D')
-#define GPIO_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE SIGNATURE_32 ('g', 'k', 'c', 'n')
+#define VIRTUAL_KEYBOARD_DEV_SIGNATURE SIGNATURE_32 ('V', 'K', 'B', 'D')
+#define VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE SIGNATURE_32 ('v', 'k', 'c', 'n')
 
-typedef struct _GPIO_KEYBOARD_CONSOLE_IN_EX_NOTIFY {
+typedef struct _VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY {
   UINTN                                      Signature;
   EFI_KEY_DATA                               KeyData;
   EFI_KEY_NOTIFY_FUNCTION                    KeyNotificationFn;
   LIST_ENTRY                                 NotifyEntry;
-} GPIO_KEYBOARD_CONSOLE_IN_EX_NOTIFY;
+} VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY;
 
 typedef struct {
   UINTN             Front;
@@ -88,14 +85,9 @@ typedef struct {
 typedef struct {
   UINTN                                       Signature;
   EFI_HANDLE                                  Handle;
-  EMBEDDED_GPIO                               *Gpio;
-  PLATFORM_GPIO_KBD_PROTOCOL                  *PlatformGpio;
+  PLATFORM_VIRTUAL_KBD_PROTOCOL               *PlatformVirtual;
   EFI_SIMPLE_TEXT_INPUT_PROTOCOL              SimpleTextIn;
   EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL           SimpleTextInputEx;
-  UINT16                                      DataRegisterAddress;
-  UINT16                                      StatusRegisterAddress;
-  UINT16                                      CommandRegisterAddress;
-  BOOLEAN                                     ExtendedKeyboard;
 
   //
   // Buffer storing EFI_KEY_DATA
@@ -110,20 +102,20 @@ typedef struct {
   EFI_EVENT                                   KeyNotifyProcessEvent;
   EFI_EVENT                                   TimerEvent;
 
-} GPIO_KEYBOARD_DEV;
+} VIRTUAL_KEYBOARD_DEV;
 
-#define GPIO_KEYBOARD_DEV_FROM_THIS(a)  CR (a, GPIO_KEYBOARD_DEV, SimpleTextIn, GPIO_KEYBOARD_DEV_SIGNATURE)
-#define TEXT_INPUT_EX_GPIO_KEYBOARD_DEV_FROM_THIS(a) \
+#define VIRTUAL_KEYBOARD_DEV_FROM_THIS(a)  CR (a, VIRTUAL_KEYBOARD_DEV, SimpleTextIn, VIRTUAL_KEYBOARD_DEV_SIGNATURE)
+#define TEXT_INPUT_EX_VIRTUAL_KEYBOARD_DEV_FROM_THIS(a) \
   CR (a, \
-      GPIO_KEYBOARD_DEV, \
+      VIRTUAL_KEYBOARD_DEV, \
       SimpleTextInputEx, \
-      GPIO_KEYBOARD_DEV_SIGNATURE \
+      VIRTUAL_KEYBOARD_DEV_SIGNATURE \
       )
 
 //
 // Global Variables
 //
-extern EFI_DRIVER_BINDING_PROTOCOL   gGpioKeyboardDriverBinding;
+extern EFI_DRIVER_BINDING_PROTOCOL   gVirtualKeyboardDriverBinding;
 
 //
 // Driver Binding Protocol functions
@@ -142,7 +134,7 @@ extern EFI_DRIVER_BINDING_PROTOCOL   gGpioKeyboardDriverBinding;
 **/
 EFI_STATUS
 EFIAPI
-GpioKeyboardDriverBindingSupported (
+VirtualKeyboardDriverBindingSupported (
   IN EFI_DRIVER_BINDING_PROTOCOL  *This,
   IN EFI_HANDLE                   Controller,
   IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath
@@ -162,7 +154,7 @@ GpioKeyboardDriverBindingSupported (
 **/
 EFI_STATUS
 EFIAPI
-GpioKeyboardDriverBindingStart (
+VirtualKeyboardDriverBindingStart (
   IN EFI_DRIVER_BINDING_PROTOCOL  *This,
   IN EFI_HANDLE                   Controller,
   IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath
@@ -183,7 +175,7 @@ GpioKeyboardDriverBindingStart (
 **/
 EFI_STATUS
 EFIAPI
-GpioKeyboardDriverBindingStop (
+VirtualKeyboardDriverBindingStop (
   IN  EFI_DRIVER_BINDING_PROTOCOL  *This,
   IN  EFI_HANDLE                   Controller,
   IN  UINTN                        NumberOfChildren,
@@ -221,9 +213,9 @@ GpioKeyboardDriverBindingStop (
                                 This and the language specified by Language was
                                 returned in DriverName.
 
-  @retval EFI_INVALID_PARAMETER Language is NULL.
+  @retval EFI_INVALID_PAVIRTUALETER Language is NULL.
 
-  @retval EFI_INVALID_PARAMETER DriverName is NULL.
+  @retval EFI_INVALID_PAVIRTUALETER DriverName is NULL.
 
   @retval EFI_UNSUPPORTED       The driver specified by This does not support
                                 the language specified by Language.
@@ -231,7 +223,7 @@ GpioKeyboardDriverBindingStop (
 **/
 EFI_STATUS
 EFIAPI
-GpioKeyboardComponentNameGetDriverName (
+VirtualKeyboardComponentNameGetDriverName (
   IN  EFI_COMPONENT_NAME_PROTOCOL  *This,
   IN  CHAR8                        *Language,
   OUT CHAR16                       **DriverName
@@ -289,14 +281,14 @@ GpioKeyboardComponentNameGetDriverName (
                                 driver specified by This was returned in
                                 DriverName.
 
-  @retval EFI_INVALID_PARAMETER ControllerHandle is NULL.
+  @retval EFI_INVALID_PAVIRTUALETER ControllerHandle is NULL.
 
-  @retval EFI_INVALID_PARAMETER ChildHandle is not NULL and it is not a valid
+  @retval EFI_INVALID_PAVIRTUALETER ChildHandle is not NULL and it is not a valid
                                 EFI_HANDLE.
 
-  @retval EFI_INVALID_PARAMETER Language is NULL.
+  @retval EFI_INVALID_PAVIRTUALETER Language is NULL.
 
-  @retval EFI_INVALID_PARAMETER ControllerName is NULL.
+  @retval EFI_INVALID_PAVIRTUALETER ControllerName is NULL.
 
   @retval EFI_UNSUPPORTED       The driver specified by This is not currently
                                 managing the controller specified by
@@ -308,7 +300,7 @@ GpioKeyboardComponentNameGetDriverName (
 **/
 EFI_STATUS
 EFIAPI
-GpioKeyboardComponentNameGetControllerName (
+VirtualKeyboardComponentNameGetControllerName (
   IN  EFI_COMPONENT_NAME_PROTOCOL                     *This,
   IN  EFI_HANDLE                                      ControllerHandle,
   IN  EFI_HANDLE                                      ChildHandle        OPTIONAL,
@@ -332,7 +324,7 @@ GpioKeyboardComponentNameGetControllerName (
 **/
 EFI_STATUS
 EFIAPI
-GpioKeyboardReset (
+VirtualKeyboardReset (
   IN  EFI_SIMPLE_TEXT_INPUT_PROTOCOL  *This,
   IN  BOOLEAN                         ExtendedVerification
   );
@@ -350,7 +342,7 @@ GpioKeyboardReset (
 **/
 EFI_STATUS
 EFIAPI
-GpioKeyboardResetEx (
+VirtualKeyboardResetEx (
   IN EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL  *This,
   IN BOOLEAN                            ExtendedVerification
   );
@@ -366,12 +358,12 @@ GpioKeyboardResetEx (
   @retval EFI_DEVICE_ERROR      The device is not functioning correctly and could
                                 not have the setting adjusted.
   @retval EFI_UNSUPPORTED       The device does not have the ability to set its state.
-  @retval EFI_INVALID_PARAMETER KeyToggleState is NULL.
+  @retval EFI_INVALID_PAVIRTUALETER KeyToggleState is NULL.
 
 **/
 EFI_STATUS
 EFIAPI
-GpioKeyboardSetState (
+VirtualKeyboardSetState (
   IN EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL  *This,
   IN EFI_KEY_TOGGLE_STATE               *KeyToggleState
   );
@@ -389,12 +381,12 @@ GpioKeyboardSetState (
 
   @retval EFI_SUCCESS             The notification function was registered successfully.
   @retval EFI_OUT_OF_RESOURCES    Unable to allocate resources for necesssary data structures.
-  @retval EFI_INVALID_PARAMETER   KeyData or NotifyHandle is NULL.
+  @retval EFI_INVALID_PAVIRTUALETER   KeyData or NotifyHandle is NULL.
 
 **/
 EFI_STATUS
 EFIAPI
-GpioKeyboardRegisterKeyNotify (
+VirtualKeyboardRegisterKeyNotify (
   IN EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL  *This,
   IN EFI_KEY_DATA                       *KeyData,
   IN EFI_KEY_NOTIFY_FUNCTION            KeyNotificationFunction,
@@ -408,12 +400,12 @@ GpioKeyboardRegisterKeyNotify (
   @param  NotificationHandle   The handle of the notification function being unregistered.
 
   @retval EFI_SUCCESS             The notification function was unregistered successfully.
-  @retval EFI_INVALID_PARAMETER   The NotificationHandle is invalid.
+  @retval EFI_INVALID_PAVIRTUALETER   The NotificationHandle is invalid.
 
 **/
 EFI_STATUS
 EFIAPI
-GpioKeyboardUnregisterKeyNotify (
+VirtualKeyboardUnregisterKeyNotify (
   IN EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL  *This,
   IN VOID                               *NotificationHandle
   );
@@ -427,11 +419,11 @@ GpioKeyboardUnregisterKeyNotify (
   @param  ListHead   The list head
 
   @retval EFI_SUCCESS           Free the notify list successfully
-  @retval EFI_INVALID_PARAMETER ListHead is invalid.
+  @retval EFI_INVALID_PAVIRTUALETER ListHead is invalid.
 
 **/
 EFI_STATUS
-GpioKeyboardFreeNotifyList (
+VirtualKeyboardFreeNotifyList (
   IN OUT LIST_ENTRY           *ListHead
   );
 
@@ -462,7 +454,7 @@ IsKeyRegistered (
 **/
 VOID
 EFIAPI
-GpioKeyboardWaitForKey (
+VirtualKeyboardWaitForKey (
   IN  EFI_EVENT  Event,
   IN  VOID       *Context
   );
@@ -476,7 +468,7 @@ GpioKeyboardWaitForKey (
 **/
 VOID
 EFIAPI
-GpioKeyboardWaitForKeyEx (
+VirtualKeyboardWaitForKeyEx (
   IN  EFI_EVENT  Event,
   IN  VOID       *Context
   );
@@ -487,12 +479,12 @@ GpioKeyboardWaitForKeyEx (
   It is registered as running under TPL_NOTIFY
 
   @param  Event   The timer event
-  @param  Context A GPIO_KEYBOARD_DEV pointer
+  @param  Context A VIRTUAL_KEYBOARD_DEV pointer
 
 **/
 VOID
 EFIAPI
-GpioKeyboardTimerHandler (
+VirtualKeyboardTimerHandler (
   IN EFI_EVENT    Event,
   IN VOID         *Context
   );
@@ -522,7 +514,7 @@ KeyNotifyProcessHandler (
 **/
 EFI_STATUS
 EFIAPI
-GpioKeyboardReadKeyStroke (
+VirtualKeyboardReadKeyStroke (
   IN  EFI_SIMPLE_TEXT_INPUT_PROTOCOL  *This,
   OUT EFI_INPUT_KEY                   *Key
   );
@@ -539,100 +531,14 @@ GpioKeyboardReadKeyStroke (
   @retval  EFI_NOT_READY         There was no keystroke data availiable.
   @retval  EFI_DEVICE_ERROR      The keystroke information was not returned due to
                                  hardware errors.
-  @retval  EFI_INVALID_PARAMETER KeyData is NULL.
+  @retval  EFI_INVALID_PAVIRTUALETER KeyData is NULL.
 
 **/
 EFI_STATUS
 EFIAPI
-GpioKeyboardReadKeyStrokeEx (
+VirtualKeyboardReadKeyStrokeEx (
   IN  EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL *This,
   OUT EFI_KEY_DATA                      *KeyData
   );
 
-#if 0
-/**
-  Check key buffer to get the key stroke status.
-
-  @param  This         Pointer of the protocol EFI_SIMPLE_TEXT_IN_PROTOCOL.
-
-  @retval EFI_SUCCESS  A key is being pressed now.
-  @retval Other        No key is now pressed.
-
-**/
-EFI_STATUS
-EFIAPI
-GpioKeyboardCheckForKey (
-  IN  EFI_SIMPLE_TEXT_INPUT_PROTOCOL  *This
-  );
-
-/**
-  Convert unicode combined with scan code of key to the counterpart of EFIScancode of it.
-
-  @param  KeyChar      Unicode of key.
-  @param  ScanCode     Scan code of key.
-
-  @return The value of EFI Scancode for the key.
-  @retval SCAN_NULL   No corresponding value in the EFI convert table is found for the key.
-
-**/
-UINT16
-ConvertToEFIScanCode (
-  IN  CHAR16  KeyChar,
-  IN  UINT16  ScanCode
-  );
-
-/**
-  Check whether there is Ps/2 Keyboard device in system by 0xF4 Keyboard Command
-  If Keyboard receives 0xF4, it will respond with 'ACK'. If it doesn't respond, the device
-  should not be in system.
-
-  @param  GpioKeyboardPrivate  Keyboard Private Data Struture
-
-  @retval TRUE  Keyboard in System.
-  @retval FALSE Keyboard not in System.
-
-**/
-BOOLEAN
-CheckKeyboardConnect (
-  IN  GPIO_KEYBOARD_DEV     *GpioKeyboardPrivate
-  );
-
-/**
-  Wait for a specific value to be presented in
-  Data register of Keyboard Controller by keyboard and then read it,
-  used in keyboard commands ack
-
-  @param   GpioKeyboardPrivate  Keyboard instance pointer.
-  @param   Value                The value to be waited for
-  @param   WaitForValueTimeOut  The limit of microseconds for timeout
-
-  @retval  EFI_SUCCESS          The command byte is written successfully.
-  @retval  EFI_TIMEOUT          Timeout occurred during writing.
-
-**/
-EFI_STATUS
-KeyboardWaitForValue (
-  IN GPIO_KEYBOARD_DEV  *GpioKeyboardPrivate,
-  IN UINT8              Value,
-  IN UINTN              WaitForValueTimeOut
-  );
-
-/**
-  Write data byte to input buffer or input/output ports of Keyboard Controller with delay and waiting for buffer-empty state.
-
-  @param   GpioKeyboardPrivate  Keyboard instance pointer.
-  @param   Data                 Data byte to write.
-
-  @retval  EFI_SUCCESS          The data byte is written successfully.
-  @retval  EFI_TIMEOUT          Timeout occurred during writing.
-
-**/
-EFI_STATUS
-KeyboardWrite (
-  IN GPIO_KEYBOARD_DEV  *GpioKeyboardPrivate,
-  IN UINT8              Data
-  );
-
-#endif
-
-#endif /* _GPIO_KEYBOARD_H_ */
+#endif /* _VIRTUAL_KEYBOARD_H_ */

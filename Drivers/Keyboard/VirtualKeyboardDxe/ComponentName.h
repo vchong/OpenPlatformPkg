@@ -14,38 +14,16 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
-#include "RamKeyboard.h"
+#ifndef _VIRTUAL_KEYBOARD_COMPONENT_NAME_H_
+#define _VIRTUAL_KEYBOARD_COMPONENT_NAME_H_
+
+
+extern EFI_COMPONENT_NAME_PROTOCOL   gVirtualKeyboardComponentName;
+extern EFI_COMPONENT_NAME2_PROTOCOL  gVirtualKeyboardComponentName2;
 
 //
-// EFI Component Name Protocol
+// EFI Component Name Functions
 //
-GLOBAL_REMOVE_IF_UNREFERENCED EFI_COMPONENT_NAME_PROTOCOL  gRamKeyboardComponentName = {
-  RamKeyboardComponentNameGetDriverName,
-  RamKeyboardComponentNameGetControllerName,
-  "eng"
-};
-
-//
-// EFI Component Name 2 Protocol
-//
-GLOBAL_REMOVE_IF_UNREFERENCED EFI_COMPONENT_NAME2_PROTOCOL gRamKeyboardComponentName2 = {
-  (EFI_COMPONENT_NAME2_GET_DRIVER_NAME) RamKeyboardComponentNameGetDriverName,
-  (EFI_COMPONENT_NAME2_GET_CONTROLLER_NAME) RamKeyboardComponentNameGetControllerName,
-  "en"
-};
-
-
-GLOBAL_REMOVE_IF_UNREFERENCED EFI_UNICODE_STRING_TABLE mRamKeyboardDriverNameTable[] = {
-  {
-    "eng;en",
-    L"RAM Keyboard Driver"
-  },
-  {
-    NULL,
-    NULL
-  }
-};
-
 /**
   Retrieves a Unicode string that is the user readable name of the driver.
 
@@ -87,20 +65,12 @@ GLOBAL_REMOVE_IF_UNREFERENCED EFI_UNICODE_STRING_TABLE mRamKeyboardDriverNameTab
 **/
 EFI_STATUS
 EFIAPI
-RamKeyboardComponentNameGetDriverName (
+VirtualKeyboardComponentNameGetDriverName (
   IN  EFI_COMPONENT_NAME_PROTOCOL  *This,
   IN  CHAR8                        *Language,
   OUT CHAR16                       **DriverName
-  )
-{
-  return LookupUnicodeString2 (
-           Language,
-           This->SupportedLanguages,
-           mRamKeyboardDriverNameTable,
-           DriverName,
-           (BOOLEAN)(This == &gRamKeyboardComponentName)
-           );
-}
+  );
+
 
 /**
   Retrieves a Unicode string that is the user readable name of the controller
@@ -172,13 +142,13 @@ RamKeyboardComponentNameGetDriverName (
 **/
 EFI_STATUS
 EFIAPI
-RamKeyboardComponentNameGetControllerName (
+VirtualKeyboardComponentNameGetControllerName (
   IN  EFI_COMPONENT_NAME_PROTOCOL                     *This,
   IN  EFI_HANDLE                                      ControllerHandle,
   IN  EFI_HANDLE                                      ChildHandle        OPTIONAL,
   IN  CHAR8                                           *Language,
   OUT CHAR16                                          **ControllerName
-  )
-{
-  return EFI_UNSUPPORTED;
-}
+  );
+
+
+#endif

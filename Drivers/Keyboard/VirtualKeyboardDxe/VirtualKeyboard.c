@@ -1,5 +1,5 @@
 /** @file
-  RamKeyboard driver
+  VirtualKeyboard driver
 
 Copyright (c) 2006 - 2016, Intel Corporation. All rights reserved.<BR>
 Copyright (c) 2017, Linaro Ltd. All rights reserved.<BR>
@@ -15,15 +15,15 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
-#include "RamKeyboard.h"
+#include "VirtualKeyboard.h"
 
 //
 // RAM Keyboard Driver Binding Protocol Instance
 //
-EFI_DRIVER_BINDING_PROTOCOL gRamKeyboardDriverBinding = {
-  RamKeyboardDriverBindingSupported,
-  RamKeyboardDriverBindingStart,
-  RamKeyboardDriverBindingStop,
+EFI_DRIVER_BINDING_PROTOCOL gVirtualKeyboardDriverBinding = {
+  VirtualKeyboardDriverBindingSupported,
+  VirtualKeyboardDriverBindingStart,
+  VirtualKeyboardDriverBindingStop,
   0x10,
   NULL,
   NULL
@@ -46,19 +46,19 @@ EFI_DRIVER_BINDING_PROTOCOL gRamKeyboardDriverBinding = {
 **/
 EFI_STATUS
 EFIAPI
-RamKeyboardDriverBindingSupported (
+VirtualKeyboardDriverBindingSupported (
   IN EFI_DRIVER_BINDING_PROTOCOL  *This,
   IN EFI_HANDLE                   Controller,
   IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath
   )
 {
   EFI_STATUS                     Status;
-  PLATFORM_RAM_KBD_PROTOCOL      *PlatformRam;
+  PLATFORM_VIRTUAL_KBD_PROTOCOL  *PlatformVirtual;
 
   Status = gBS->OpenProtocol (
                   Controller,
-                  &gPlatformRamKeyboardProtocolGuid,
-                  (VOID **) &PlatformRam,
+                  &gPlatformVirtualKeyboardProtocolGuid,
+                  (VOID **) &PlatformVirtual,
                   This->DriverBindingHandle,
                   Controller,
                   EFI_OPEN_PROTOCOL_BY_DRIVER
@@ -68,7 +68,7 @@ RamKeyboardDriverBindingSupported (
   }
   gBS->CloseProtocol (
          Controller,
-         &gPlatformRamKeyboardProtocolGuid,
+         &gPlatformVirtualKeyboardProtocolGuid,
          This->DriverBindingHandle,
          Controller
          );
@@ -89,21 +89,21 @@ RamKeyboardDriverBindingSupported (
 **/
 EFI_STATUS
 EFIAPI
-RamKeyboardDriverBindingStart (
+VirtualKeyboardDriverBindingStart (
   IN EFI_DRIVER_BINDING_PROTOCOL  *This,
   IN EFI_HANDLE                   Controller,
   IN EFI_DEVICE_PATH_PROTOCOL     *RemainingDevicePath
   )
 {
   EFI_STATUS                                Status;
-  RAM_KEYBOARD_DEV                          *RamKeyboardPrivate;
+  VIRTUAL_KEYBOARD_DEV                          *VirtualKeyboardPrivate;
   EFI_STATUS_CODE_VALUE                     StatusCode;
-  PLATFORM_RAM_KBD_PROTOCOL                 *PlatformRam;
+  PLATFORM_VIRTUAL_KBD_PROTOCOL                 *PlatformVirtual;
 
   Status = gBS->OpenProtocol (
                   Controller,
-                  &gPlatformRamKeyboardProtocolGuid,
-                  (VOID **) &PlatformRam,
+                  &gPlatformVirtualKeyboardProtocolGuid,
+                  (VOID **) &PlatformVirtual,
                   This->DriverBindingHandle,
                   Controller,
                   EFI_OPEN_PROTOCOL_BY_DRIVER
@@ -115,8 +115,8 @@ RamKeyboardDriverBindingStart (
   //
   // Allocate the private device structure
   //
-  RamKeyboardPrivate = (RAM_KEYBOARD_DEV *) AllocateZeroPool (sizeof (RAM_KEYBOARD_DEV));
-  if (NULL == RamKeyboardPrivate) {
+  VirtualKeyboardPrivate = (VIRTUAL_KEYBOARD_DEV *) AllocateZeroPool (sizeof (VIRTUAL_KEYBOARD_DEV));
+  if (NULL == VirtualKeyboardPrivate) {
     Status = EFI_OUT_OF_RESOURCES;
     goto Done;
   }
@@ -124,24 +124,29 @@ RamKeyboardDriverBindingStart (
   //
   // Initialize the private device structure
   //
-  RamKeyboardPrivate->Signature                  = RAM_KEYBOARD_DEV_SIGNATURE;
-  RamKeyboardPrivate->Handle                     = Controller;
-  RamKeyboardPrivate->PlatformRam                = PlatformRam;
-  RamKeyboardPrivate->Queue.Front                = 0;
-  RamKeyboardPrivate->Queue.Rear                 = 0;
-  RamKeyboardPrivate->QueueForNotify.Front       = 0;
-  RamKeyboardPrivate->QueueForNotify.Rear        = 0;
+  VirtualKeyboardPrivate->Signature                  = VIRTUAL_KEYBOARD_DEV_SIGNATURE;
+  VirtualKeyboardPrivate->Handle                     = Controller;
+  VirtualKeyboardPrivate->PlatformVirtual            = PlatformVirtual;
+  VirtualKeyboardPrivate->Queue.Front                = 0;
+  VirtualKeyboardPrivate->Queue.Rear                 = 0;
+  VirtualKeyboardPrivate->QueueForNotify.Front       = 0;
+  VirtualKeyboardPrivate->QueueForNotify.Rear        = 0;
 
-  RamKeyboardPrivate->SimpleTextIn.Reset         = RamKeyboardReset;
-  RamKeyboardPrivate->SimpleTextIn.ReadKeyStroke = RamKeyboardReadKeyStroke;
+  VirtualKeyboardPrivate->SimpleTextIn.Reset         = VirtualKeyboardReset;
+  VirtualKeyboardPrivate->SimpleTextIn.ReadKeyStroke = VirtualKeyboardReadKeyStroke;
 
-  RamKeyboardPrivate->SimpleTextInputEx.Reset               = RamKeyboardResetEx;
-  RamKeyboardPrivate->SimpleTextInputEx.ReadKeyStrokeEx     = RamKeyboardReadKeyStrokeEx;
-  RamKeyboardPrivate->SimpleTextInputEx.SetState            = RamKeyboardSetState;
+  VirtualKeyboardPrivate->SimpleTextInputEx.Reset               = VirtualKeyboardResetEx;
+  VirtualKeyboardPrivate->SimpleTextInputEx.ReadKeyStrokeEx     = VirtualKeyboardReadKeyStrokeEx;
+  VirtualKeyboardPrivate->SimpleTextInputEx.SetState            = VirtualKeyboardSetState;
 
-  RamKeyboardPrivate->SimpleTextInputEx.RegisterKeyNotify   = RamKeyboardRegisterKeyNotify;
-  RamKeyboardPrivate->SimpleTextInputEx.UnregisterKeyNotify = RamKeyboardUnregisterKeyNotify;
-  InitializeListHead (&RamKeyboardPrivate->NotifyList);
+  VirtualKeyboardPrivate->SimpleTextInputEx.RegisterKeyNotify   = VirtualKeyboardRegisterKeyNotify;
+  VirtualKeyboardPrivate->SimpleTextInputEx.UnregisterKeyNotify = VirtualKeyboardUnregisterKeyNotify;
+  InitializeListHead (&VirtualKeyboardPrivate->NotifyList);
+
+  Status = PlatformVirtual->Register ();
+  if (EFI_ERROR (Status)) {
+    goto Done;
+  }
 
   //
   // Report that the keyboard is being enabled
@@ -157,23 +162,23 @@ RamKeyboardDriverBindingStart (
   Status = gBS->CreateEvent (
                   EVT_NOTIFY_WAIT,
                   TPL_NOTIFY,
-                  RamKeyboardWaitForKey,
-                  &(RamKeyboardPrivate->SimpleTextIn),
-                  &((RamKeyboardPrivate->SimpleTextIn).WaitForKey)
+                  VirtualKeyboardWaitForKey,
+                  &(VirtualKeyboardPrivate->SimpleTextIn),
+                  &((VirtualKeyboardPrivate->SimpleTextIn).WaitForKey)
                   );
   if (EFI_ERROR (Status)) {
-    (RamKeyboardPrivate->SimpleTextIn).WaitForKey = NULL;
+    (VirtualKeyboardPrivate->SimpleTextIn).WaitForKey = NULL;
     goto Done;
   }
   Status = gBS->CreateEvent (
                   EVT_NOTIFY_WAIT,
                   TPL_NOTIFY,
-                  RamKeyboardWaitForKeyEx,
-                  &(RamKeyboardPrivate->SimpleTextInputEx),
-                  &(RamKeyboardPrivate->SimpleTextInputEx.WaitForKeyEx)
+                  VirtualKeyboardWaitForKeyEx,
+                  &(VirtualKeyboardPrivate->SimpleTextInputEx),
+                  &(VirtualKeyboardPrivate->SimpleTextInputEx.WaitForKeyEx)
                   );
   if (EFI_ERROR (Status)) {
-    RamKeyboardPrivate->SimpleTextInputEx.WaitForKeyEx = NULL;
+    VirtualKeyboardPrivate->SimpleTextInputEx.WaitForKeyEx = NULL;
     goto Done;
   }
 
@@ -183,9 +188,9 @@ RamKeyboardDriverBindingStart (
   Status = gBS->CreateEvent (
                   EVT_TIMER | EVT_NOTIFY_SIGNAL,
                   TPL_NOTIFY,
-                  RamKeyboardTimerHandler,
-                  RamKeyboardPrivate,
-                  &RamKeyboardPrivate->TimerEvent
+                  VirtualKeyboardTimerHandler,
+                  VirtualKeyboardPrivate,
+                  &VirtualKeyboardPrivate->TimerEvent
                   );
   if (EFI_ERROR (Status)) {
     Status      = EFI_OUT_OF_RESOURCES;
@@ -194,7 +199,7 @@ RamKeyboardDriverBindingStart (
   }
 
   Status = gBS->SetTimer (
-                  RamKeyboardPrivate->TimerEvent,
+                  VirtualKeyboardPrivate->TimerEvent,
                   TimerPeriodic,
                   KEYBOARD_TIMER_INTERVAL
                   );
@@ -208,8 +213,8 @@ RamKeyboardDriverBindingStart (
                   EVT_NOTIFY_SIGNAL,
                   TPL_CALLBACK,
                   KeyNotifyProcessHandler,
-                  RamKeyboardPrivate,
-                  &RamKeyboardPrivate->KeyNotifyProcessEvent
+                  VirtualKeyboardPrivate,
+                  &VirtualKeyboardPrivate->KeyNotifyProcessEvent
                   );
   if (EFI_ERROR (Status)) {
     Status      = EFI_OUT_OF_RESOURCES;
@@ -228,8 +233,8 @@ RamKeyboardDriverBindingStart (
   //
   // Reset the keyboard device
   //
-  Status = RamKeyboardPrivate->SimpleTextInputEx.Reset (
-                                                    &RamKeyboardPrivate->SimpleTextInputEx,
+  Status = VirtualKeyboardPrivate->SimpleTextInputEx.Reset (
+                                                    &VirtualKeyboardPrivate->SimpleTextInputEx,
                                                     FALSE
                                                     );
   if (EFI_ERROR (Status)) {
@@ -243,9 +248,9 @@ RamKeyboardDriverBindingStart (
   Status = gBS->InstallMultipleProtocolInterfaces (
                   &Controller,
                   &gEfiSimpleTextInProtocolGuid,
-                  &RamKeyboardPrivate->SimpleTextIn,
+                  &VirtualKeyboardPrivate->SimpleTextIn,
                   &gEfiSimpleTextInputExProtocolGuid,
-                  &RamKeyboardPrivate->SimpleTextInputEx,
+                  &VirtualKeyboardPrivate->SimpleTextInputEx,
                   NULL
                   );
 
@@ -261,31 +266,31 @@ Done:
   }
 
   if (EFI_ERROR (Status)) {
-    if (RamKeyboardPrivate != NULL) {
-      if ((RamKeyboardPrivate->SimpleTextIn).WaitForKey != NULL) {
-        gBS->CloseEvent ((RamKeyboardPrivate->SimpleTextIn).WaitForKey);
+    if (VirtualKeyboardPrivate != NULL) {
+      if ((VirtualKeyboardPrivate->SimpleTextIn).WaitForKey != NULL) {
+        gBS->CloseEvent ((VirtualKeyboardPrivate->SimpleTextIn).WaitForKey);
       }
 
-      if ((RamKeyboardPrivate->SimpleTextInputEx).WaitForKeyEx != NULL) {
-        gBS->CloseEvent ((RamKeyboardPrivate->SimpleTextInputEx).WaitForKeyEx);
+      if ((VirtualKeyboardPrivate->SimpleTextInputEx).WaitForKeyEx != NULL) {
+        gBS->CloseEvent ((VirtualKeyboardPrivate->SimpleTextInputEx).WaitForKeyEx);
       }
 
-      if (RamKeyboardPrivate->KeyNotifyProcessEvent != NULL) {
-        gBS->CloseEvent (RamKeyboardPrivate->KeyNotifyProcessEvent);
+      if (VirtualKeyboardPrivate->KeyNotifyProcessEvent != NULL) {
+        gBS->CloseEvent (VirtualKeyboardPrivate->KeyNotifyProcessEvent);
       }
 
-      RamKeyboardFreeNotifyList (&RamKeyboardPrivate->NotifyList);
+      VirtualKeyboardFreeNotifyList (&VirtualKeyboardPrivate->NotifyList);
 
-      if (RamKeyboardPrivate->TimerEvent != NULL) {
-        gBS->CloseEvent (RamKeyboardPrivate->TimerEvent);
+      if (VirtualKeyboardPrivate->TimerEvent != NULL) {
+        gBS->CloseEvent (VirtualKeyboardPrivate->TimerEvent);
       }
-      FreePool (RamKeyboardPrivate);
+      FreePool (VirtualKeyboardPrivate);
     }
   }
 
   gBS->CloseProtocol (
          Controller,
-         &gPlatformRamKeyboardProtocolGuid,
+         &gPlatformVirtualKeyboardProtocolGuid,
          This->DriverBindingHandle,
          Controller
          );
@@ -308,7 +313,7 @@ Done:
 **/
 EFI_STATUS
 EFIAPI
-RamKeyboardDriverBindingStop (
+VirtualKeyboardDriverBindingStop (
   IN  EFI_DRIVER_BINDING_PROTOCOL  *This,
   IN  EFI_HANDLE                   Controller,
   IN  UINTN                        NumberOfChildren,
@@ -403,15 +408,15 @@ CheckQueue (
 **/
 EFI_STATUS
 EFIAPI
-RamKeyboardCheckForKey (
+VirtualKeyboardCheckForKey (
   IN  EFI_SIMPLE_TEXT_INPUT_PROTOCOL  *This
   )
 {
-  RAM_KEYBOARD_DEV     *RamKeyboardPrivate;
+  VIRTUAL_KEYBOARD_DEV     *VirtualKeyboardPrivate;
 
-  RamKeyboardPrivate = RAM_KEYBOARD_DEV_FROM_THIS (This);
+  VirtualKeyboardPrivate = VIRTUAL_KEYBOARD_DEV_FROM_THIS (This);
 
-  return CheckQueue (&RamKeyboardPrivate->Queue);
+  return CheckQueue (&VirtualKeyboardPrivate->Queue);
 }
 
 /**
@@ -424,11 +429,11 @@ RamKeyboardCheckForKey (
 
 **/
 EFI_STATUS
-RamKeyboardFreeNotifyList (
+VirtualKeyboardFreeNotifyList (
   IN OUT LIST_ENTRY           *ListHead
   )
 {
-  RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY *NotifyNode;
+  VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY *NotifyNode;
 
   if (ListHead == NULL) {
     return EFI_INVALID_PARAMETER;
@@ -436,9 +441,9 @@ RamKeyboardFreeNotifyList (
   while (!IsListEmpty (ListHead)) {
     NotifyNode = CR (
                    ListHead->ForwardLink,
-                   RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY,
+                   VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY,
                    NotifyEntry,
-                   RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE
+                   VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE
                    );
     RemoveEntryList (ListHead->ForwardLink);
     gBS->FreePool (NotifyNode);
@@ -499,7 +504,7 @@ IsKeyRegistered (
 **/
 VOID
 EFIAPI
-RamKeyboardWaitForKey (
+VirtualKeyboardWaitForKey (
   IN  EFI_EVENT               Event,
   IN  VOID                    *Context
   )
@@ -518,9 +523,9 @@ RamKeyboardWaitForKey (
   //
   // Use TimerEvent callback function to check whether there's any key pressed
   //
-  RamKeyboardTimerHandler (NULL, RAM_KEYBOARD_DEV_FROM_THIS (Context));
+  VirtualKeyboardTimerHandler (NULL, VIRTUAL_KEYBOARD_DEV_FROM_THIS (Context));
 
-  if (!EFI_ERROR (RamKeyboardCheckForKey (Context))) {
+  if (!EFI_ERROR (VirtualKeyboardCheckForKey (Context))) {
     gBS->SignalEvent (Event);
   }
 }
@@ -535,16 +540,16 @@ RamKeyboardWaitForKey (
 **/
 VOID
 EFIAPI
-RamKeyboardWaitForKeyEx (
+VirtualKeyboardWaitForKeyEx (
   IN  EFI_EVENT               Event,
   IN  VOID                    *Context
   )
 
 {
-  RAM_KEYBOARD_DEV                     *RamKeyboardPrivate;
+  VIRTUAL_KEYBOARD_DEV                     *VirtualKeyboardPrivate;
 
-  RamKeyboardPrivate = TEXT_INPUT_EX_RAM_KEYBOARD_DEV_FROM_THIS (Context);
-  RamKeyboardWaitForKey (Event, &RamKeyboardPrivate->SimpleTextIn);
+  VirtualKeyboardPrivate = TEXT_INPUT_EX_VIRTUAL_KEYBOARD_DEV_FROM_THIS (Context);
+  VirtualKeyboardWaitForKey (Event, &VirtualKeyboardPrivate->SimpleTextIn);
 
 }
 
@@ -563,12 +568,34 @@ RamKeyboardWaitForKeyEx (
 **/
 EFI_STATUS
 EFIAPI
-RamKeyboardReset (
+VirtualKeyboardReset (
   IN  EFI_SIMPLE_TEXT_INPUT_PROTOCOL  *This,
   IN  BOOLEAN                         ExtendedVerification
   )
 {
-  return EFI_SUCCESS;
+  VIRTUAL_KEYBOARD_DEV *VirtualKeyboardPrivate;
+  EFI_STATUS           Status;
+  EFI_TPL              OldTpl;
+
+  VirtualKeyboardPrivate = VIRTUAL_KEYBOARD_DEV_FROM_THIS (This);
+
+  //
+  // Raise TPL to avoid mouse operation impact
+  //
+  OldTpl = gBS->RaiseTPL (TPL_NOTIFY);
+
+  if (VirtualKeyboardPrivate->PlatformVirtual && VirtualKeyboardPrivate->PlatformVirtual->Reset) {
+    Status = VirtualKeyboardPrivate->PlatformVirtual->Reset ();
+  } else {
+    Status = EFI_INVALID_PARAMETER;
+  }
+
+  //
+  // resume priority of task level
+  //
+  gBS->RestoreTPL (OldTpl);
+
+  return Status;
 }
 
 /**
@@ -584,19 +611,19 @@ RamKeyboardReset (
 **/
 EFI_STATUS
 EFIAPI
-RamKeyboardResetEx (
+VirtualKeyboardResetEx (
   IN EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL  *This,
   IN BOOLEAN                            ExtendedVerification
   )
 {
-  RAM_KEYBOARD_DEV                     *RamKeyboardPrivate;
+  VIRTUAL_KEYBOARD_DEV                     *VirtualKeyboardPrivate;
   EFI_STATUS                            Status;
   EFI_TPL                               OldTpl;
 
-  RamKeyboardPrivate = TEXT_INPUT_EX_RAM_KEYBOARD_DEV_FROM_THIS (This);
+  VirtualKeyboardPrivate = TEXT_INPUT_EX_VIRTUAL_KEYBOARD_DEV_FROM_THIS (This);
 
-  Status = RamKeyboardPrivate->SimpleTextIn.Reset (
-                                               &RamKeyboardPrivate->SimpleTextIn,
+  Status = VirtualKeyboardPrivate->SimpleTextIn.Reset (
+                                               &VirtualKeyboardPrivate->SimpleTextIn,
                                                ExtendedVerification
                                                );
   if (EFI_ERROR (Status)) {
@@ -615,7 +642,7 @@ RamKeyboardResetEx (
   Reads the next keystroke from the input device. The WaitForKey Event can
   be used to test for existance of a keystroke via WaitForEvent () call.
 
-  @param  RamKeyboardPrivate   Ramkeyboard driver private structure.
+  @param  VirtualKeyboardPrivate   Virtualkeyboard driver private structure.
   @param  KeyData               A pointer to a buffer that is filled in with the keystroke
                                 state data for the key that was pressed.
 
@@ -628,7 +655,7 @@ RamKeyboardResetEx (
 **/
 EFI_STATUS
 KeyboardReadKeyStrokeWorker (
-  IN RAM_KEYBOARD_DEV  *RamKeyboardPrivate,
+  IN VIRTUAL_KEYBOARD_DEV  *VirtualKeyboardPrivate,
   OUT EFI_KEY_DATA      *KeyData
   )
 {
@@ -656,17 +683,17 @@ KeyboardReadKeyStrokeWorker (
 
   OldTpl = gBS->RaiseTPL (TPL_NOTIFY);
 
-  RamKeyboardTimerHandler (NULL, RamKeyboardPrivate);
+  VirtualKeyboardTimerHandler (NULL, VirtualKeyboardPrivate);
   //
   // If there's no key, just return
   //
-  Status = CheckQueue (&RamKeyboardPrivate->Queue);
+  Status = CheckQueue (&VirtualKeyboardPrivate->Queue);
   if (EFI_ERROR (Status)) {
     gBS->RestoreTPL (OldTpl);
     return EFI_NOT_READY;
   }
 
-  Status = Dequeue (&RamKeyboardPrivate->Queue, KeyData);
+  Status = Dequeue (&VirtualKeyboardPrivate->Queue, KeyData);
 
   gBS->RestoreTPL (OldTpl);
 
@@ -685,18 +712,18 @@ KeyboardReadKeyStrokeWorker (
 **/
 EFI_STATUS
 EFIAPI
-RamKeyboardReadKeyStroke (
+VirtualKeyboardReadKeyStroke (
   IN  EFI_SIMPLE_TEXT_INPUT_PROTOCOL  *This,
   OUT EFI_INPUT_KEY                   *Key
   )
 {
-  RAM_KEYBOARD_DEV     *RamKeyboardPrivate;
+  VIRTUAL_KEYBOARD_DEV     *VirtualKeyboardPrivate;
   EFI_STATUS            Status;
   EFI_KEY_DATA          KeyData;
 
-  RamKeyboardPrivate = RAM_KEYBOARD_DEV_FROM_THIS (This);
+  VirtualKeyboardPrivate = VIRTUAL_KEYBOARD_DEV_FROM_THIS (This);
 
-  Status = KeyboardReadKeyStrokeWorker (RamKeyboardPrivate, &KeyData);
+  Status = KeyboardReadKeyStrokeWorker (VirtualKeyboardPrivate, &KeyData);
   if (EFI_ERROR (Status)) {
     return Status;
   }
@@ -734,20 +761,20 @@ RamKeyboardReadKeyStroke (
 **/
 EFI_STATUS
 EFIAPI
-RamKeyboardReadKeyStrokeEx (
+VirtualKeyboardReadKeyStrokeEx (
   IN  EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL *This,
   OUT EFI_KEY_DATA                      *KeyData
   )
 {
-  RAM_KEYBOARD_DEV                     *RamKeyboardPrivate;
+  VIRTUAL_KEYBOARD_DEV                     *VirtualKeyboardPrivate;
 
   if (KeyData == NULL) {
     return EFI_INVALID_PARAMETER;
   }
 
-  RamKeyboardPrivate = TEXT_INPUT_EX_RAM_KEYBOARD_DEV_FROM_THIS (This);
+  VirtualKeyboardPrivate = TEXT_INPUT_EX_VIRTUAL_KEYBOARD_DEV_FROM_THIS (This);
 
-  return KeyboardReadKeyStrokeWorker (RamKeyboardPrivate, KeyData);
+  return KeyboardReadKeyStrokeWorker (VirtualKeyboardPrivate, KeyData);
 
 }
 
@@ -767,7 +794,7 @@ RamKeyboardReadKeyStrokeEx (
 **/
 EFI_STATUS
 EFIAPI
-RamKeyboardSetState (
+VirtualKeyboardSetState (
   IN EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL  *This,
   IN EFI_KEY_TOGGLE_STATE               *KeyToggleState
   )
@@ -806,7 +833,7 @@ RamKeyboardSetState (
 **/
 EFI_STATUS
 EFIAPI
-RamKeyboardRegisterKeyNotify (
+VirtualKeyboardRegisterKeyNotify (
   IN EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL  *This,
   IN EFI_KEY_DATA                       *KeyData,
   IN EFI_KEY_NOTIFY_FUNCTION            KeyNotificationFunction,
@@ -814,17 +841,17 @@ RamKeyboardRegisterKeyNotify (
   )
 {
   EFI_STATUS                            Status;
-  RAM_KEYBOARD_DEV                     *RamKeyboardPrivate;
+  VIRTUAL_KEYBOARD_DEV                     *VirtualKeyboardPrivate;
   EFI_TPL                               OldTpl;
-  RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY    *NewNotify;
+  VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY    *NewNotify;
   LIST_ENTRY                            *Link;
-  RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY    *CurrentNotify;
+  VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY    *CurrentNotify;
 
   if (KeyData == NULL || NotifyHandle == NULL || KeyNotificationFunction == NULL) {
     return EFI_INVALID_PARAMETER;
   }
 
-  RamKeyboardPrivate = TEXT_INPUT_EX_RAM_KEYBOARD_DEV_FROM_THIS (This);
+  VirtualKeyboardPrivate = TEXT_INPUT_EX_VIRTUAL_KEYBOARD_DEV_FROM_THIS (This);
 
   //
   // Enter critical section
@@ -834,12 +861,12 @@ RamKeyboardRegisterKeyNotify (
   //
   // Return EFI_SUCCESS if the (KeyData, NotificationFunction) is already registered.
   //
-  for (Link = RamKeyboardPrivate->NotifyList.ForwardLink; Link != &RamKeyboardPrivate->NotifyList; Link = Link->ForwardLink) {
+  for (Link = VirtualKeyboardPrivate->NotifyList.ForwardLink; Link != &VirtualKeyboardPrivate->NotifyList; Link = Link->ForwardLink) {
     CurrentNotify = CR (
                       Link,
-                      RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY,
+                      VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY,
                       NotifyEntry,
-                      RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE
+                      VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE
                       );
     if (IsKeyRegistered (&CurrentNotify->KeyData, KeyData)) {
       if (CurrentNotify->KeyNotificationFn == KeyNotificationFunction) {
@@ -854,16 +881,16 @@ RamKeyboardRegisterKeyNotify (
   // Allocate resource to save the notification function
   //
 
-  NewNotify = (RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY *) AllocateZeroPool (sizeof (RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY));
+  NewNotify = (VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY *) AllocateZeroPool (sizeof (VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY));
   if (NewNotify == NULL) {
     Status = EFI_OUT_OF_RESOURCES;
     goto Exit;
   }
 
-  NewNotify->Signature         = RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE;
+  NewNotify->Signature         = VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE;
   NewNotify->KeyNotificationFn = KeyNotificationFunction;
   CopyMem (&NewNotify->KeyData, KeyData, sizeof (EFI_KEY_DATA));
-  InsertTailList (&RamKeyboardPrivate->NotifyList, &NewNotify->NotifyEntry);
+  InsertTailList (&VirtualKeyboardPrivate->NotifyList, &NewNotify->NotifyEntry);
 
   *NotifyHandle                = NewNotify;
   Status                       = EFI_SUCCESS;
@@ -889,16 +916,16 @@ Exit:
 **/
 EFI_STATUS
 EFIAPI
-RamKeyboardUnregisterKeyNotify (
+VirtualKeyboardUnregisterKeyNotify (
   IN EFI_SIMPLE_TEXT_INPUT_EX_PROTOCOL  *This,
   IN VOID                               *NotificationHandle
   )
 {
   EFI_STATUS                            Status;
-  RAM_KEYBOARD_DEV                     *RamKeyboardPrivate;
+  VIRTUAL_KEYBOARD_DEV                     *VirtualKeyboardPrivate;
   EFI_TPL                               OldTpl;
   LIST_ENTRY                            *Link;
-  RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY    *CurrentNotify;
+  VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY    *CurrentNotify;
 
   //
   // Check incoming notification handle
@@ -907,23 +934,23 @@ RamKeyboardUnregisterKeyNotify (
     return EFI_INVALID_PARAMETER;
   }
 
-  if (((RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY *) NotificationHandle)->Signature != RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE) {
+  if (((VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY *) NotificationHandle)->Signature != VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE) {
     return EFI_INVALID_PARAMETER;
   }
 
-  RamKeyboardPrivate = TEXT_INPUT_EX_RAM_KEYBOARD_DEV_FROM_THIS (This);
+  VirtualKeyboardPrivate = TEXT_INPUT_EX_VIRTUAL_KEYBOARD_DEV_FROM_THIS (This);
 
   //
   // Enter critical section
   //
   OldTpl = gBS->RaiseTPL (TPL_NOTIFY);
 
-  for (Link = RamKeyboardPrivate->NotifyList.ForwardLink; Link != &RamKeyboardPrivate->NotifyList; Link = Link->ForwardLink) {
+  for (Link = VirtualKeyboardPrivate->NotifyList.ForwardLink; Link != &VirtualKeyboardPrivate->NotifyList; Link = Link->ForwardLink) {
     CurrentNotify = CR (
                       Link,
-                      RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY,
+                      VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY,
                       NotifyEntry,
-                      RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE
+                      VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE
                       );
     if (CurrentNotify == NotificationHandle) {
       //
@@ -962,7 +989,7 @@ Exit:
 **/
 VOID
 EFIAPI
-RamKeyboardTimerHandler (
+VirtualKeyboardTimerHandler (
   IN EFI_EVENT    Event,
   IN VOID         *Context
   )
@@ -971,32 +998,30 @@ RamKeyboardTimerHandler (
   EFI_TPL                            OldTpl;
   LIST_ENTRY                         *Link;
   EFI_KEY_DATA                       KeyData;
-  RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY  *CurrentNotify;
-  RAM_KEYBOARD_DEV                   *RamKeyboardPrivate;
-  RAM_KBD_KEY                        RamKey;
+  VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY  *CurrentNotify;
+  VIRTUAL_KEYBOARD_DEV                   *VirtualKeyboardPrivate;
+  VIRTUAL_KBD_KEY                        VirtualKey;
 
-  RamKeyboardPrivate = Context;
+  VirtualKeyboardPrivate = Context;
 
   //
   // Enter critical section
   //
   OldTpl = gBS->RaiseTPL (TPL_NOTIFY);
 
-  if (RamKeyboardPrivate->PlatformRam && RamKeyboardPrivate->PlatformRam->Register) {
-    Status = RamKeyboardPrivate->PlatformRam->Register (&RamKey);
-    if (Status == EFI_SUCCESS) {
-      if (RamKeyboardPrivate->PlatformRam->Query (&RamKey) == FALSE) {
-        Status = EFI_INVALID_PARAMETER;
-        goto Exit;
-      }
-      // Found key
-      KeyData.Key.ScanCode = RamKey.Key.ScanCode;
-      KeyData.Key.UnicodeChar = RamKey.Key.UnicodeChar;
-      KeyData.KeyState.KeyShiftState  = EFI_SHIFT_STATE_VALID;
-      KeyData.KeyState.KeyToggleState = EFI_TOGGLE_STATE_VALID;
-      if (RamKeyboardPrivate->PlatformRam->Clear) {
-        RamKeyboardPrivate->PlatformRam->Clear (&RamKey);
-      }
+  if (VirtualKeyboardPrivate->PlatformVirtual &&
+      VirtualKeyboardPrivate->PlatformVirtual->Query) {
+    if (VirtualKeyboardPrivate->PlatformVirtual->Query (&VirtualKey) == FALSE) {
+      Status = EFI_INVALID_PARAMETER;
+      goto Exit;
+    }
+    // Found key
+    KeyData.Key.ScanCode = VirtualKey.Key.ScanCode;
+    KeyData.Key.UnicodeChar = VirtualKey.Key.UnicodeChar;
+    KeyData.KeyState.KeyShiftState  = EFI_SHIFT_STATE_VALID;
+    KeyData.KeyState.KeyToggleState = EFI_TOGGLE_STATE_VALID;
+    if (VirtualKeyboardPrivate->PlatformVirtual->Clear) {
+      VirtualKeyboardPrivate->PlatformVirtual->Clear (&VirtualKey);
     }
   } else {
     Status = EFI_INVALID_PARAMETER;
@@ -1006,12 +1031,12 @@ RamKeyboardTimerHandler (
   //
   // Signal KeyNotify process event if this key pressed matches any key registered.
   //
-  for (Link = RamKeyboardPrivate->NotifyList.ForwardLink; Link != &RamKeyboardPrivate->NotifyList; Link = Link->ForwardLink) {
+  for (Link = VirtualKeyboardPrivate->NotifyList.ForwardLink; Link != &VirtualKeyboardPrivate->NotifyList; Link = Link->ForwardLink) {
     CurrentNotify = CR (
                       Link,
-                      RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY,
+                      VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY,
                       NotifyEntry,
-                      RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE
+                      VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE
                       );
     if (IsKeyRegistered (&CurrentNotify->KeyData, &KeyData)) {
       //
@@ -1019,12 +1044,12 @@ RamKeyboardTimerHandler (
       // while current TPL is TPL_NOTIFY. It will be invoked in
       // KeyNotifyProcessHandler() which runs at TPL_CALLBACK.
       //
-      Enqueue (&RamKeyboardPrivate->QueueForNotify, &KeyData);
-      gBS->SignalEvent (RamKeyboardPrivate->KeyNotifyProcessEvent);
+      Enqueue (&VirtualKeyboardPrivate->QueueForNotify, &KeyData);
+      gBS->SignalEvent (VirtualKeyboardPrivate->KeyNotifyProcessEvent);
     }
   }
 
-  Enqueue (&RamKeyboardPrivate->Queue, &KeyData);
+  Enqueue (&VirtualKeyboardPrivate->Queue, &KeyData);
 
 Exit:
   //
@@ -1047,25 +1072,25 @@ KeyNotifyProcessHandler (
   )
 {
   EFI_STATUS                            Status;
-  RAM_KEYBOARD_DEV                     *RamKeyboardPrivate;
+  VIRTUAL_KEYBOARD_DEV                     *VirtualKeyboardPrivate;
   EFI_KEY_DATA                          KeyData;
   LIST_ENTRY                            *Link;
   LIST_ENTRY                            *NotifyList;
-  RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY    *CurrentNotify;
+  VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY    *CurrentNotify;
   EFI_TPL                               OldTpl;
 
-  RamKeyboardPrivate = (RAM_KEYBOARD_DEV *) Context;
+  VirtualKeyboardPrivate = (VIRTUAL_KEYBOARD_DEV *) Context;
 
   //
   // Invoke notification functions.
   //
-  NotifyList = &RamKeyboardPrivate->NotifyList;
+  NotifyList = &VirtualKeyboardPrivate->NotifyList;
   while (TRUE) {
     //
     // Enter critical section
     //
     OldTpl = gBS->RaiseTPL (TPL_NOTIFY);
-    Status = Dequeue (&RamKeyboardPrivate->QueueForNotify, &KeyData);
+    Status = Dequeue (&VirtualKeyboardPrivate->QueueForNotify, &KeyData);
     //
     // Leave critical section
     //
@@ -1074,7 +1099,7 @@ KeyNotifyProcessHandler (
       break;
     }
     for (Link = GetFirstNode (NotifyList); !IsNull (NotifyList, Link); Link = GetNextNode (NotifyList, Link)) {
-      CurrentNotify = CR (Link, RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY, NotifyEntry, RAM_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE);
+      CurrentNotify = CR (Link, VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY, NotifyEntry, VIRTUAL_KEYBOARD_CONSOLE_IN_EX_NOTIFY_SIGNATURE);
       if (IsKeyRegistered (&CurrentNotify->KeyData, &KeyData)) {
         CurrentNotify->KeyNotificationFn (&KeyData);
       }
@@ -1083,7 +1108,7 @@ KeyNotifyProcessHandler (
 }
 
 /**
-  The user Entry Point for module RamKeyboard. The user code starts with this function.
+  The user Entry Point for module VirtualKeyboard. The user code starts with this function.
 
   @param[in] ImageHandle    The firmware allocated handle for the EFI image.
   @param[in] SystemTable    A pointer to the EFI System Table.
@@ -1094,7 +1119,7 @@ KeyNotifyProcessHandler (
 **/
 EFI_STATUS
 EFIAPI
-InitializeRamKeyboard(
+InitializeVirtualKeyboard(
   IN EFI_HANDLE           ImageHandle,
   IN EFI_SYSTEM_TABLE     *SystemTable
   )
@@ -1107,10 +1132,10 @@ InitializeRamKeyboard(
   Status = EfiLibInstallDriverBindingComponentName2 (
              ImageHandle,
              SystemTable,
-             &gRamKeyboardDriverBinding,
+             &gVirtualKeyboardDriverBinding,
              ImageHandle,
-             &gRamKeyboardComponentName,
-             &gRamKeyboardComponentName2
+             &gVirtualKeyboardComponentName,
+             &gVirtualKeyboardComponentName2
              );
   ASSERT_EFI_ERROR (Status);
 

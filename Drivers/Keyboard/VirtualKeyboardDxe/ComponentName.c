@@ -14,16 +14,38 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 **/
 
-#ifndef _GPIO_KEYBOARD_COMPONENT_NAME_H_
-#define _GPIO_KEYBOARD_COMPONENT_NAME_H_
-
-
-extern EFI_COMPONENT_NAME_PROTOCOL   gGpioKeyboardComponentName;
-extern EFI_COMPONENT_NAME2_PROTOCOL  gGpioKeyboardComponentName2;
+#include "VirtualKeyboard.h"
 
 //
-// EFI Component Name Functions
+// EFI Component Name Protocol
 //
+GLOBAL_REMOVE_IF_UNREFERENCED EFI_COMPONENT_NAME_PROTOCOL  gVirtualKeyboardComponentName = {
+  VirtualKeyboardComponentNameGetDriverName,
+  VirtualKeyboardComponentNameGetControllerName,
+  "eng"
+};
+
+//
+// EFI Component Name 2 Protocol
+//
+GLOBAL_REMOVE_IF_UNREFERENCED EFI_COMPONENT_NAME2_PROTOCOL gVirtualKeyboardComponentName2 = {
+  (EFI_COMPONENT_NAME2_GET_DRIVER_NAME) VirtualKeyboardComponentNameGetDriverName,
+  (EFI_COMPONENT_NAME2_GET_CONTROLLER_NAME) VirtualKeyboardComponentNameGetControllerName,
+  "en"
+};
+
+
+GLOBAL_REMOVE_IF_UNREFERENCED EFI_UNICODE_STRING_TABLE mVirtualKeyboardDriverNameTable[] = {
+  {
+    "eng;en",
+    L"RAM Keyboard Driver"
+  },
+  {
+    NULL,
+    NULL
+  }
+};
+
 /**
   Retrieves a Unicode string that is the user readable name of the driver.
 
@@ -65,12 +87,20 @@ extern EFI_COMPONENT_NAME2_PROTOCOL  gGpioKeyboardComponentName2;
 **/
 EFI_STATUS
 EFIAPI
-GpioKeyboardComponentNameGetDriverName (
+VirtualKeyboardComponentNameGetDriverName (
   IN  EFI_COMPONENT_NAME_PROTOCOL  *This,
   IN  CHAR8                        *Language,
   OUT CHAR16                       **DriverName
-  );
-
+  )
+{
+  return LookupUnicodeString2 (
+           Language,
+           This->SupportedLanguages,
+           mVirtualKeyboardDriverNameTable,
+           DriverName,
+           (BOOLEAN)(This == &gVirtualKeyboardComponentName)
+           );
+}
 
 /**
   Retrieves a Unicode string that is the user readable name of the controller
@@ -142,13 +172,13 @@ GpioKeyboardComponentNameGetDriverName (
 **/
 EFI_STATUS
 EFIAPI
-GpioKeyboardComponentNameGetControllerName (
+VirtualKeyboardComponentNameGetControllerName (
   IN  EFI_COMPONENT_NAME_PROTOCOL                     *This,
   IN  EFI_HANDLE                                      ControllerHandle,
   IN  EFI_HANDLE                                      ChildHandle        OPTIONAL,
   IN  CHAR8                                           *Language,
   OUT CHAR16                                          **ControllerName
-  );
-
-
-#endif
+  )
+{
+  return EFI_UNSUPPORTED;
+}

@@ -18,7 +18,7 @@
 
 [Defines]
   DEC_SPECIFICATION              = 0x00010019
-  PACKAGE_NAME                   = RamKeyboardDxePkg
+  PACKAGE_NAME                   = VirtualKeyboardDxePkg
   PACKAGE_GUID                   = 774326bc-20d0-4203-97e4-10dc17f7dc1a
   PACKAGE_VERSION                = 0.1
 
@@ -33,7 +33,7 @@
 ################################################################################
 
 [Guids.common]
-  gRamKeyboardDxeTokenSpaceGuid    = { 0x80caf901, 0x0cf6, 0x4c09, { 0x89, 0x84, 0x61, 0xd1, 0xf3, 0xd2, 0x54, 0x39 }}
+  gVirtualKeyboardDxeTokenSpaceGuid    = { 0x80caf901, 0x0cf6, 0x4c09, { 0x89, 0x84, 0x61, 0xd1, 0xf3, 0xd2, 0x54, 0x39 }}
 
 [Protocols.common]
-  gPlatformRamKeyboardProtocolGuid = { 0x0e3606d2, 0x1dc3, 0x4e6f, { 0xbe, 0x65, 0x39, 0x49, 0x82, 0xa2, 0x65, 0x47 }}
+  gPlatformVirtualKeyboardProtocolGuid = { 0x0e3606d2, 0x1dc3, 0x4e6f, { 0xbe, 0x65, 0x39, 0x49, 0x82, 0xa2, 0x65, 0x47 }}
