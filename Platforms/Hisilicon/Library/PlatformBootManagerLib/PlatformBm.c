@@ -50,11 +50,6 @@ typedef struct {
           { 0x8C, 0xAF, 0x49, 0x67, 0xEB, 0x62, 0x72, 0x41 } \
           }
 
-#define GPIO_KBD_DXE_FILE_GUID { \
-          0xd1927a35, 0x11fa, 0x44d0, \
-          { 0x9d, 0x91, 0xda, 0xce, 0x09, 0x22, 0x5d, 0x8d } \
-          }
-
 STATIC PLATFORM_SERIAL_CONSOLE mSerialConsole = {
   //
   // VENDOR_DEVICE_PATH SerialDxe
@@ -131,30 +126,6 @@ STATIC PLATFORM_USB_KEYBOARD mUsbKeyboard = {
   }
 };
 
-#pragma pack (1)
-typedef struct {
-  VENDOR_DEVICE_PATH       Keyboard;
-  EFI_DEVICE_PATH_PROTOCOL End;
-} PLATFORM_GPIO_KEYBOARD;
-#pragma pack ()
-
-STATIC PLATFORM_GPIO_KEYBOARD mGpioKeyboard = {
-  //
-  // VENDOR_DEVICE_PATH Keyboard
-  //
-  {
-    { HARDWARE_DEVICE_PATH, HW_VENDOR_DP, DP_NODE_LEN (VENDOR_DEVICE_PATH) },
-    GPIO_KBD_DXE_FILE_GUID
-  },
-
-  //
-  // EFI_DEVICE_PATH_PROTOCOL End
-  //
-  {
-    END_DEVICE_PATH_TYPE, END_ENTIRE_DEVICE_PATH_SUBTYPE,
-    DP_NODE_LEN (EFI_DEVICE_PATH_PROTOCOL)
-  }
-};
 
 /**
   Check if the handle satisfies a particular condition.
@@ -530,12 +501,6 @@ PlatformBootManagerBeforeConsole (
   //
   EfiBootManagerUpdateConsoleVariable (ConIn,
     (EFI_DEVICE_PATH_PROTOCOL *)&mUsbKeyboard, NULL);
-
-  //
-  // Add the hardcoded short-form GPIO keyboard device path to ConIn.
-  //
-  EfiBootManagerUpdateConsoleVariable (ConIn,
-    (EFI_DEVICE_PATH_PROTOCOL *)&mGpioKeyboard, NULL);
 
   //
   // Add the hardcoded serial console device path to ConIn, ConOut, ErrOut.
