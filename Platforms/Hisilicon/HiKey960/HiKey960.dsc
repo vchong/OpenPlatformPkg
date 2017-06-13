@@ -424,12 +424,18 @@
 
   MdeModulePkg/Universal/WatchdogTimerDxe/WatchdogTimer.inf
 
-  OpenPlatformPkg/Platforms/Hisilicon/HiKey960/HiKey960Dxe/HiKey960Dxe.inf
-
   #
   # GPIO
   #
   ArmPlatformPkg/Drivers/PL061GpioDxe/PL061GpioDxe.inf
+  OpenPlatformPkg/Platforms/Hisilicon/HiKey960/HiKey960GpioDxe/HiKey960GpioDxe.inf
+
+  #
+  # Virtual Keyboard
+  #
+  OpenPlatformPkg/Drivers/Keyboard/VirtualKeyboardDxe/VirtualKeyboardDxe.inf
+
+  OpenPlatformPkg/Platforms/Hisilicon/HiKey960/HiKey960Dxe/HiKey960Dxe.inf
 
   #
   # USB Host Support

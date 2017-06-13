@@ -35,7 +35,9 @@
 #include <Protocol/Abootimg.h>
 #include <Protocol/BlockIo.h>
 #include <Protocol/DevicePathToText.h>
+#include <Protocol/EmbeddedGpio.h>
 #include <Protocol/NonDiscoverableDevice.h>
+#include <Protocol/PlatformVirtualKeyboard.h>
 
 #define ADC_ADCIN0                       0
 #define ADC_ADCIN1                       1
@@ -81,6 +83,12 @@
 #define RANDOM_MAX                       0x7FFFFFFFFFFFFFFF
 #define RANDOM_MAGIC                     0x9A4DBEAF
 
+#define ADB_REBOOT_ADDRESS               0x32100000
+#define ADB_REBOOT_BOOTLOADER            0x77665500
+#define ADB_REBOOT_NONE                  0x77665501
+
+#define DETECT_SW_FASTBOOT               68        // GPIO8_4
+
 typedef struct {
   UINT64        Magic;
   UINT64        Data;
@@ -88,6 +96,8 @@ typedef struct {
 } RANDOM_SERIAL_NUMBER;
 
 STATIC UINTN    mBoardId;
+
+STATIC EMBEDDED_GPIO   *mGpio;
 
 STATIC
 VOID
@@ -451,6 +461,89 @@ ABOOTIMG_PROTOCOL mAbootimg = {
 
 EFI_STATUS
 EFIAPI
+VirtualKeyboardRegister (
+  IN VOID
+  )
+{
+  EFI_STATUS           Status;
+
+  Status = gBS->LocateProtocol (
+                  &gEmbeddedGpioProtocolGuid,
+                  NULL,
+                  (VOID **) &mGpio
+                  );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+  return EFI_SUCCESS;
+}
+
+EFI_STATUS
+EFIAPI
+VirtualKeyboardReset (
+  IN VOID
+  )
+{
+  EFI_STATUS           Status;
+
+  if (mGpio == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+  Status = mGpio->Set (mGpio, DETECT_SW_FASTBOOT, GPIO_MODE_INPUT);
+  return Status;
+}
+
+BOOLEAN
+EFIAPI
+VirtualKeyboardQuery (
+  IN VIRTUAL_KBD_KEY             *VirtualKey
+  )
+{
+  EFI_STATUS           Status;
+  UINTN                Value = 0;
+
+  if ((VirtualKey == NULL) || (mGpio == NULL)) {
+    return FALSE;
+  }
+  if (MmioRead32 (ADB_REBOOT_ADDRESS) == ADB_REBOOT_BOOTLOADER) {
+    goto Done;
+  } else {
+    Status = mGpio->Get (mGpio, DETECT_SW_FASTBOOT, &Value);
+    if (EFI_ERROR (Status) || (Value != 0)) {
+      return FALSE;
+    }
+  }
+Done:
+  VirtualKey->Signature = VIRTUAL_KEYBOARD_KEY_SIGNATURE;
+  VirtualKey->Key.ScanCode = SCAN_NULL;
+  VirtualKey->Key.UnicodeChar = L'f';
+  return TRUE;
+}
+
+EFI_STATUS
+EFIAPI
+VirtualKeyboardClear (
+  IN VIRTUAL_KBD_KEY            *VirtualKey
+  )
+{
+  if (VirtualKey == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+  if (MmioRead32 (ADB_REBOOT_ADDRESS) == ADB_REBOOT_BOOTLOADER) {
+    MmioWrite32 (ADB_REBOOT_ADDRESS, ADB_REBOOT_NONE);
+  }
+  return EFI_SUCCESS;
+}
+
+PLATFORM_VIRTUAL_KBD_PROTOCOL mVirtualKeyboard = {
+  VirtualKeyboardRegister,
+  VirtualKeyboardReset,
+  VirtualKeyboardQuery,
+  VirtualKeyboardClear
+};
+
+EFI_STATUS
+EFIAPI
 HiKey960EntryPoint (
   IN EFI_HANDLE         ImageHandle,
   IN EFI_SYSTEM_TABLE   *SystemTable
@@ -503,6 +596,15 @@ HiKey960EntryPoint (
                   EFI_NATIVE_INTERFACE,
                   &mAbootimg
                   );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
 
+  Status = gBS->InstallProtocolInterface (
+                  &ImageHandle,
+                  &gPlatformVirtualKeyboardProtocolGuid,
+                  EFI_NATIVE_INTERFACE,
+                  &mVirtualKeyboard
+                  );
   return Status;
 }
