@@ -498,6 +498,8 @@ VirtualKeyboardReset (
   if (mGpio == NULL) {
     return EFI_INVALID_PARAMETER;
   }
+  // Configure GPIO68 as GPIO function
+  MmioWrite32 (0xe896c108, 0);
   Status = mGpio->Set (mGpio, DETECT_SW_FASTBOOT, GPIO_MODE_INPUT);
   return Status;
 }
