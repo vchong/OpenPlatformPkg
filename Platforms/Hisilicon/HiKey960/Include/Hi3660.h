@@ -50,6 +50,14 @@
 #define USB3OTG_PHY_CR_CAP_DATA                 (1 << 1)
 #define USB3OTG_PHY_CR_CAP_ADDR                 (1 << 0)
 
+#define PMU_REG_BASE                            0xFFF34000
+#define PMIC_HARDWARE_CTRL0                     (PMU_REG_BASE + (0x0C5 << 2))
+#define PMIC_OSC32K_ONOFF_CTRL                  (PMU_REG_BASE + (0x0CC << 2))
+
+#define PMIC_HARDWARE_CTRL0_WIFI_CLK            (1 << 5)
+#define PMIC_OSC32K_ONOFF_CTRL_EN_32K           (1 << 1)
+
+
 #define CRG_REG_BASE                            0xFFF35000
 
 #define CRG_PEREN2                              (CRG_REG_BASE + 0x020)

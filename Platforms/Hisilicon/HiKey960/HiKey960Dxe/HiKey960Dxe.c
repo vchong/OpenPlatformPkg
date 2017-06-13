@@ -254,6 +254,15 @@ InitBoardId (
   return EFI_SUCCESS;
 }
 
+VOID
+InitPeripherals (
+  IN VOID
+  )
+{
+  // Enable wifi clock
+  MmioWrite32 (PMIC_HARDWARE_CTRL0, PMIC_HARDWARE_CTRL0_WIFI_CLK);
+  MmioWrite32 (PMIC_OSC32K_ONOFF_CTRL, PMIC_OSC32K_ONOFF_CTRL_EN_32K);
+}
 
 /**
   Notification function of the event defined as belonging to the
@@ -556,6 +565,8 @@ HiKey960EntryPoint (
   if (EFI_ERROR (Status)) {
     return Status;
   }
+
+  InitPeripherals ();
 
   //
   // Create an event belonging to the "gEfiEndOfDxeEventGroupGuid" group.
