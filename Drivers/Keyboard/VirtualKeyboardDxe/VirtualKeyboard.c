@@ -994,7 +994,6 @@ VirtualKeyboardTimerHandler (
   IN VOID         *Context
   )
 {
-  EFI_STATUS                         Status;
   EFI_TPL                            OldTpl;
   LIST_ENTRY                         *Link;
   EFI_KEY_DATA                       KeyData;
@@ -1012,7 +1011,6 @@ VirtualKeyboardTimerHandler (
   if (VirtualKeyboardPrivate->PlatformVirtual &&
       VirtualKeyboardPrivate->PlatformVirtual->Query) {
     if (VirtualKeyboardPrivate->PlatformVirtual->Query (&VirtualKey) == FALSE) {
-      Status = EFI_INVALID_PARAMETER;
       goto Exit;
     }
     // Found key
@@ -1024,7 +1022,6 @@ VirtualKeyboardTimerHandler (
       VirtualKeyboardPrivate->PlatformVirtual->Clear (&VirtualKey);
     }
   } else {
-    Status = EFI_INVALID_PARAMETER;
     goto Exit;
   }
 
