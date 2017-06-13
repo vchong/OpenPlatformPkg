@@ -427,8 +427,8 @@
   #
   # GPIO
   #
-  ArmPlatformPkg/Drivers/PL061GpioDxe/PL061GpioDxe.inf
   OpenPlatformPkg/Platforms/Hisilicon/HiKey960/HiKey960GpioDxe/HiKey960GpioDxe.inf
+  ArmPlatformPkg/Drivers/PL061GpioDxe/PL061GpioDxe.inf
 
   #
   # Virtual Keyboard
