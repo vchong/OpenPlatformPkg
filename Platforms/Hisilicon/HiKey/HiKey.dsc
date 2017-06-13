@@ -417,14 +417,9 @@
   OpenPlatformPkg/Platforms/Hisilicon/HiKey/HiKeyGpioDxe/HiKeyGpioDxe.inf
 
   #
-  # GPIO Keyboard
+  # Virtual Keyboard
   #
-  OpenPlatformPkg/Drivers/Keyboard/GpioKeyboardDxe/GpioKeyboardDxe.inf
-
-  #
-  # RAM Keyboard
-  #
-  OpenPlatformPkg/Drivers/Keyboard/RamKeyboardDxe/RamKeyboardDxe.inf
+  OpenPlatformPkg/Drivers/Keyboard/VirtualKeyboardDxe/VirtualKeyboardDxe.inf
 
   OpenPlatformPkg/Platforms/Hisilicon/HiKey/HiKeyDxe/HiKeyDxe.inf
 

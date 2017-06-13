@@ -26,8 +26,8 @@
 
 #include <Protocol/Abootimg.h>
 #include <Protocol/BlockIo.h>
-#include <Protocol/PlatformGpioKeyboard.h>
-#include <Protocol/PlatformRamKeyboard.h>
+#include <Protocol/EmbeddedGpio.h>
+#include <Protocol/PlatformVirtualKeyboard.h>
 
 #include <Hi6220.h>
 #include <libfdt.h>
@@ -52,6 +52,8 @@ typedef struct {
   UINT64        Data;
   CHAR16        UnicodeSN[SERIAL_NUMBER_SIZE];
 } RANDOM_SERIAL_NUMBER;
+
+STATIC EMBEDDED_GPIO        *mGpio;
 
 STATIC
 VOID
@@ -250,74 +252,85 @@ ABOOTIMG_PROTOCOL mAbootimg = {
 
 EFI_STATUS
 EFIAPI
-GpioKeyboardRegister (
-  IN OUT GPIO_KBD_KEY                       *GpioKey
+VirtualKeyboardRegister (
+  IN VOID
   )
 {
-  if (GpioKey == NULL) {
-    return EFI_INVALID_PARAMETER;
+  EFI_STATUS           Status;
+
+  Status = gBS->LocateProtocol (
+                  &gEmbeddedGpioProtocolGuid,
+                  NULL,
+                  (VOID **) &mGpio
+                  );
+  if (EFI_ERROR (Status)) {
+    return Status;
   }
-  GpioKey->Signature = GPIO_KBD_KEY_NEXT_SIGNATURE;
-  GpioKey->Pin = DETECT_J15_FASTBOOT;
-  GpioKey->Value = 0;
-  GpioKey->Key.ScanCode = SCAN_NULL;
-  GpioKey->Key.UnicodeChar = L'f';
-  InitializeListHead (&GpioKey->Next);
   return EFI_SUCCESS;
 }
 
-PLATFORM_GPIO_KBD_PROTOCOL mGpioKeyboard = {
-  GpioKeyboardRegister
-};
-
 EFI_STATUS
 EFIAPI
-RamKeyboardRegister (
-  IN OUT RAM_KBD_KEY                         *RamKey
+VirtualKeyboardReset (
+  IN VOID
   )
 {
-  if (RamKey == NULL) {
+  EFI_STATUS           Status;
+
+  if (mGpio == NULL) {
     return EFI_INVALID_PARAMETER;
   }
-  RamKey->Signature = RAM_KBD_KEY_NEXT_SIGNATURE;
-  RamKey->Base = ADB_REBOOT_ADDRESS;
-  RamKey->Key.ScanCode = SCAN_NULL;
-  RamKey->Key.UnicodeChar = L'f';
-  return EFI_SUCCESS;
+  Status = mGpio->Set (mGpio, DETECT_J15_FASTBOOT, GPIO_MODE_INPUT);
+  return Status;
 }
 
 BOOLEAN
 EFIAPI
-RamKeyboardQuery (
-  IN RAM_KBD_KEY                             *RamKey
+VirtualKeyboardQuery (
+  IN VIRTUAL_KBD_KEY             *VirtualKey
   )
 {
-  if ((RamKey == NULL) || (RamKey->Base == 0)) {
+  EFI_STATUS           Status;
+  UINTN                Value = 0;
+
+  if ((VirtualKey == NULL) || (mGpio == NULL)) {
     return FALSE;
   }
-  if (MmioRead32 (RamKey->Base) != ADB_REBOOT_BOOTLOADER) {
-    return FALSE;
+  if (MmioRead32 (ADB_REBOOT_ADDRESS) == ADB_REBOOT_BOOTLOADER) {
+    goto Done;
+  } else {
+    Status = mGpio->Get (mGpio, DETECT_J15_FASTBOOT, &Value);
+    if (EFI_ERROR (Status) || (Value != 0)) {
+      return FALSE;
+    }
   }
+Done:
+  VirtualKey->Signature = VIRTUAL_KEYBOARD_KEY_SIGNATURE;
+  VirtualKey->Key.ScanCode = SCAN_NULL;
+  VirtualKey->Key.UnicodeChar = L'f';
   return TRUE;
 }
 
 EFI_STATUS
 EFIAPI
-RamKeyboardClear (
-  IN RAM_KBD_KEY                             *RamKey
+VirtualKeyboardClear (
+  IN VIRTUAL_KBD_KEY            *VirtualKey
   )
 {
-  if ((RamKey == NULL) || (RamKey->Base == 0)) {
-    return FALSE;
+  if (VirtualKey == NULL) {
+    return EFI_INVALID_PARAMETER;
   }
-  MmioWrite32 (RamKey->Base, ADB_REBOOT_NONE);
+  if (MmioRead32 (ADB_REBOOT_ADDRESS) == ADB_REBOOT_BOOTLOADER) {
+    MmioWrite32 (ADB_REBOOT_ADDRESS, ADB_REBOOT_NONE);
+  }
   return EFI_SUCCESS;
 }
 
-PLATFORM_RAM_KBD_PROTOCOL mRamKeyboard = {
-  RamKeyboardRegister,
-  RamKeyboardQuery,
-  RamKeyboardClear
+PLATFORM_VIRTUAL_KBD_PROTOCOL mVirtualKeyboard = {
+  VirtualKeyboardRegister,
+  VirtualKeyboardReset,
+  VirtualKeyboardQuery,
+  VirtualKeyboardClear
 };
 
 EFI_STATUS
@@ -346,19 +359,9 @@ HiKeyEntryPoint (
 
   Status = gBS->InstallProtocolInterface (
                   &ImageHandle,
-                  &gPlatformGpioKeyboardProtocolGuid,
+                  &gPlatformVirtualKeyboardProtocolGuid,
                   EFI_NATIVE_INTERFACE,
-                  &mGpioKeyboard
-                  );
-  if (EFI_ERROR (Status)) {
-    return Status;
-  }
-
-  Status = gBS->InstallProtocolInterface (
-                  &ImageHandle,
-                  &gPlatformRamKeyboardProtocolGuid,
-                  EFI_NATIVE_INTERFACE,
-                  &mRamKeyboard
+                  &mVirtualKeyboard
                   );
   return Status;
 }
