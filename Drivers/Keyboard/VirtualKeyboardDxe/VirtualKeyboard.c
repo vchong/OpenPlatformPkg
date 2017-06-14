@@ -96,9 +96,8 @@ VirtualKeyboardDriverBindingStart (
   )
 {
   EFI_STATUS                                Status;
-  VIRTUAL_KEYBOARD_DEV                          *VirtualKeyboardPrivate;
-  EFI_STATUS_CODE_VALUE                     StatusCode;
-  PLATFORM_VIRTUAL_KBD_PROTOCOL                 *PlatformVirtual;
+  VIRTUAL_KEYBOARD_DEV                      *VirtualKeyboardPrivate;
+  PLATFORM_VIRTUAL_KBD_PROTOCOL             *PlatformVirtual;
 
   Status = gBS->OpenProtocol (
                   Controller,
@@ -194,7 +193,6 @@ VirtualKeyboardDriverBindingStart (
                   );
   if (EFI_ERROR (Status)) {
     Status      = EFI_OUT_OF_RESOURCES;
-    StatusCode  = EFI_PERIPHERAL_KEYBOARD | EFI_P_EC_CONTROLLER_ERROR;
     goto Done;
   }
 
@@ -205,7 +203,6 @@ VirtualKeyboardDriverBindingStart (
                   );
   if (EFI_ERROR (Status)) {
     Status      = EFI_OUT_OF_RESOURCES;
-    StatusCode  = EFI_PERIPHERAL_KEYBOARD | EFI_P_EC_CONTROLLER_ERROR;
     goto Done;
   }
 
@@ -218,17 +215,8 @@ VirtualKeyboardDriverBindingStart (
                   );
   if (EFI_ERROR (Status)) {
     Status      = EFI_OUT_OF_RESOURCES;
-    StatusCode  = EFI_PERIPHERAL_KEYBOARD | EFI_P_EC_CONTROLLER_ERROR;
     goto Done;
   }
-
-  //
-  // Report a Progress Code for an attempt to detect the precense of the keyboard device in the system
-  //
-  REPORT_STATUS_CODE (
-    EFI_PROGRESS_CODE,
-    EFI_PERIPHERAL_KEYBOARD | EFI_P_PC_PRESENCE_DETECT
-    );
 
   //
   // Reset the keyboard device
@@ -239,7 +227,6 @@ VirtualKeyboardDriverBindingStart (
                                                     );
   if (EFI_ERROR (Status)) {
     DEBUG ((EFI_D_ERROR, "[KBD]Reset Failed. Status - %r\n", Status));
-    StatusCode = EFI_PERIPHERAL_KEYBOARD | EFI_P_EC_NOT_DETECTED;
     goto Done;
   }
   //
@@ -255,16 +242,6 @@ VirtualKeyboardDriverBindingStart (
                   );
 
 Done:
-  if (StatusCode != 0) {
-    //
-    // Report an Error Code for failing to start the keyboard device
-    //
-    REPORT_STATUS_CODE (
-      EFI_ERROR_CODE | EFI_ERROR_MINOR,
-      StatusCode
-      );
-  }
-
   if (EFI_ERROR (Status)) {
     if (VirtualKeyboardPrivate != NULL) {
       if ((VirtualKeyboardPrivate->SimpleTextIn).WaitForKey != NULL) {
