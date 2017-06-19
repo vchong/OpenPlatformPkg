@@ -44,15 +44,8 @@ STATIC struct HiKey960ReservedMemory {
   { 0x32000000, 0x00100000 },    // PSTORE/RAMOOPS
   { 0x32100000, 0x00001000 },    // ADB REBOOT "REASON"
   { 0x3E000000, 0x02000000 },    // TEE OS
-#if 0
-  { 0x89280000, 0x00100000 },    // lpmx-core
-  { 0x89380000, 0x00040000 },    // lpmcu
   { 0x89B80000, 0x00100000 },    // MCU Code reserved
   { 0x89C80000, 0x00040000 }     // MCU reserved
-#else
-  { 0x89280000, 0x00140000 },
-  { 0x89B80000, 0x00140000 }
-#endif
 };
 
 /**
