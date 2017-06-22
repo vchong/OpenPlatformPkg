@@ -798,13 +798,76 @@ out:
   return EFI_NOT_FOUND;
 }
 
+EFI_STATUS
+HikeyFastbootPlatformReadPartition(
+  IN CHAR8     *PartitionName,
+  IN OUT UINTN *BufferSize,
+  OUT VOID    **Buffer
+  )
+{
+  EFI_STATUS               Status;
+  EFI_BLOCK_IO_PROTOCOL   *BlockIo;
+  UINT32                   MediaId;
+  UINTN                    PartitionSize;
+  FASTBOOT_PARTITION_LIST *Entry;
+  CHAR16                   PartitionNameUnicode[60];
+  BOOLEAN                  PartitionFound;
+
+  AsciiStrToUnicodeStr (PartitionName, PartitionNameUnicode);
+
+  PartitionFound = FALSE;
+  Entry = (FASTBOOT_PARTITION_LIST *) GetFirstNode (&(mPartitionListHead));
+  while (!IsNull (&mPartitionListHead, &Entry->Link)) {
+    // Search the partition list for the partition named by PartitionName
+    if (StrCmp (Entry->PartitionName, PartitionNameUnicode) == 0) {
+      PartitionFound = TRUE;
+      break;
+    }
+
+    Entry = (FASTBOOT_PARTITION_LIST *) GetNextNode (&mPartitionListHead, &(Entry)->Link);
+  }
+  if (!PartitionFound) {
+    return EFI_NOT_FOUND;
+  }
+
+  Status = gBS->OpenProtocol (
+                  Entry->PartitionHandle,
+                  &gEfiBlockIoProtocolGuid,
+                  (VOID **) &BlockIo,
+                  gImageHandle,
+                  NULL,
+                  EFI_OPEN_PROTOCOL_GET_PROTOCOL
+                  );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((EFI_D_ERROR, "Fastboot platform: couldn't open Block IO for read: %r\n", Status));
+    return EFI_NOT_FOUND;
+  }
+
+  // Check image will fit the memory
+  PartitionSize = (BlockIo->Media->LastBlock + 1) * BlockIo->Media->BlockSize;
+  if ((*BufferSize == 0) || (*BufferSize > PartitionSize))
+      *BufferSize = PartitionSize;
+  *Buffer = AllocatePages (EFI_SIZE_TO_PAGES(*BufferSize));
+  if (*Buffer == NULL) {
+    return EFI_OUT_OF_RESOURCES;
+  }
+
+  MediaId = BlockIo->Media->MediaId;
+  Status = BlockIo->ReadBlocks (BlockIo, MediaId, 0, *BufferSize, *Buffer);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((EFI_D_ERROR, "Fastboot platform: Fail to read: %r\n", Status));
+  }
+  return Status;
+}
+
 FASTBOOT_PLATFORM_PROTOCOL mPlatformProtocol = {
   HiKeyFastbootPlatformInit,
   HiKeyFastbootPlatformUnInit,
   HiKeyFastbootPlatformFlashPartition,
   HiKeyFastbootPlatformErasePartition,
   HiKeyFastbootPlatformGetVar,
-  HiKeyFastbootPlatformOemCommand
+  HiKeyFastbootPlatformOemCommand,
+  HikeyFastbootPlatformReadPartition,
 };
 
 EFI_STATUS
