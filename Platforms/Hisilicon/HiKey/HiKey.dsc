@@ -357,7 +357,6 @@
   gEmbeddedTokenSpaceGuid.PcdAndroidFastbootUsbVendorId|0x18d1
   gEmbeddedTokenSpaceGuid.PcdAndroidFastbootUsbProductId|0xd00d
   gHiKeyTokenSpaceGuid.PcdAndroidFastbootNvmDevicePath|L"VenHw(0D51905B-B77E-452A-A2C0-ECA0CC8D514A,00D023F70000000000)/eMMC(0x0)/Ctrl(0x0)"
-  #gHiKeyTokenSpaceGuid.PcdAndroidFastbootNvmDevicePath|L"VenHw(b549f005-4bd4-4020-a0cb-06f42bda68c3)"
   # Flash limit 128M/time, for memory concern
   gHiKeyTokenSpaceGuid.PcdArmFastbootFlashLimit|"134217728"
 
@@ -365,7 +364,7 @@
   # Android Loader
   #
   gEmbeddedTokenSpaceGuid.PcdAndroidBootDevicePath|L"VenHw(0D51905B-B77E-452A-A2C0-ECA0CC8D514A,00D023F70000000000)/eMMC(0x0)/Ctrl(0x0)/HD(6,GPT,5C0F213C-17E1-4149-88C8-8B50FB4EC70E,0x7000,0x20000)"
-  #gEmbeddedTokenSpaceGuid.PcdAndroidBootDevicePath|L"VenHw(B549F005-4BD4-4020-A0CB-06F42BDA68C3)/HD(6,GPT,5C0F213C-17E1-4149-88C8-8B50FB4EC70E,0x7000,0x20000)"
+  gEmbeddedTokenSpaceGuid.PcdSdBootDevicePath|L"VenHw(0D51905B-B77E-452A-A2C0-ECA0CC8D514A,00E023F70000000000)/SD(0x0)/HD(1,MBR,0x00000000,0x3F,0x21FC0)"
 
 ################################################################################
 #
