@@ -92,3 +92,4 @@
 
 [Pcd]
   gEmbeddedTokenSpaceGuid.PcdAndroidBootDevicePath
+  gEmbeddedTokenSpaceGuid.PcdSdBootDevicePath

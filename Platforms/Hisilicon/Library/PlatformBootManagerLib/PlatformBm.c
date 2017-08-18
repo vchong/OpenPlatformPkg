@@ -34,6 +34,7 @@
 #define DP_NODE_LEN(Type) { (UINT8)sizeof (Type), (UINT8)(sizeof (Type) >> 8) }
 
 #define GRUB_FILE_NAME       L"\\EFI\\BOOT\\GRUBAA64.EFI"
+#define SD_FILE_NAME         L"\\EFI\\BOOT\\BOOTAA64.EFI"
 
 
 #pragma pack (1)
@@ -332,6 +333,77 @@ PlatformRegisterFvBootOption (
 
 STATIC
 VOID
+PlatformRegisterBootSd (
+  VOID
+  )
+{
+  EFI_STATUS                           Status;
+  CHAR16                              *BootPathStr;
+  EFI_DEVICE_PATH_FROM_TEXT_PROTOCOL  *EfiDevicePathFromTextProtocol;
+  EFI_DEVICE_PATH                     *DevicePath;
+  EFI_DEVICE_PATH                     *FileDevicePath;
+  FILEPATH_DEVICE_PATH                *FilePath;
+  UINTN                                Size;
+  EFI_BOOT_MANAGER_LOAD_OPTION         NewOption;
+  EFI_BOOT_MANAGER_LOAD_OPTION        *BootOptions;
+  UINTN                                BootOptionCount;
+  INTN                                 OptionIndex;
+
+  //
+  // Get PcdSdBootDevicePath
+  //
+  BootPathStr = (CHAR16 *)PcdGetPtr (PcdSdBootDevicePath);
+  ASSERT (BootPathStr != NULL);
+  Status = gBS->LocateProtocol (&gEfiDevicePathFromTextProtocolGuid, NULL, (VOID **)&EfiDevicePathFromTextProtocol);
+  ASSERT_EFI_ERROR(Status);
+  DevicePath = (EFI_DEVICE_PATH *)EfiDevicePathFromTextProtocol->ConvertTextToDevicePath (BootPathStr);
+  ASSERT (DevicePath != NULL);
+
+  Size = StrSize (SD_FILE_NAME);
+  FileDevicePath = AllocatePool (Size + SIZE_OF_FILEPATH_DEVICE_PATH + END_DEVICE_PATH_LENGTH);
+  if (FileDevicePath != NULL) {
+    FilePath = (FILEPATH_DEVICE_PATH *) FileDevicePath;
+    FilePath->Header.Type    = MEDIA_DEVICE_PATH;
+    FilePath->Header.SubType = MEDIA_FILEPATH_DP;
+    CopyMem (&FilePath->PathName, SD_FILE_NAME, Size);
+    SetDevicePathNodeLength (&FilePath->Header, Size + SIZE_OF_FILEPATH_DEVICE_PATH);
+    SetDevicePathEndNode (NextDevicePathNode (&FilePath->Header));
+
+    DevicePath = AppendDevicePath (DevicePath, FileDevicePath);
+    FreePool (FileDevicePath);
+  }
+  Status = EfiBootManagerInitializeLoadOption (
+             &NewOption,
+             LoadOptionNumberUnassigned,
+             LoadOptionTypeBoot,
+             LOAD_OPTION_ACTIVE,
+             L"Boot from SD",
+             DevicePath,
+             NULL,
+             0
+             );
+  ASSERT_EFI_ERROR (Status);
+  FreePool (DevicePath);
+
+  BootOptions = EfiBootManagerGetLoadOptions (
+                  &BootOptionCount, LoadOptionTypeBoot
+                  );
+
+  OptionIndex = EfiBootManagerFindLoadOption (
+                  &NewOption, BootOptions, BootOptionCount
+                  );
+
+  if (OptionIndex == -1) {
+    Status = EfiBootManagerAddLoadOptionVariable (&NewOption, MAX_UINTN);
+    ASSERT_EFI_ERROR (Status);
+  }
+
+  EfiBootManagerFreeLoadOption (&NewOption);
+  EfiBootManagerFreeLoadOptions (BootOptions, BootOptionCount);
+}
+
+STATIC
+VOID
 PlatformRegisterBootGrub (
   VOID
   )
@@ -415,19 +487,24 @@ PlatformRegisterOptionsAndKeys (
   EFI_BOOT_MANAGER_LOAD_OPTION         BootOption;
 
   //
-  // Register Boot. OptionNumber is 1.
+  // Register Boot on SD. OptionNumber is 1.
+  //
+  PlatformRegisterBootSd ();
+
+  //
+  // Register Boot. OptionNumber is 2.
   //
   PlatformRegisterBootGrub ();
 
   //
-  // Register Android Boot. OptionNumber is 2.
+  // Register Android Boot. OptionNumber is 3.
   //
   PlatformRegisterFvBootOption (
     PcdGetPtr (PcdAndroidBootFile), L"Android Boot", LOAD_OPTION_ACTIVE
     );
 
   //
-  // Register Android Fastboot. OptionNumber is 3.
+  // Register Android Fastboot. OptionNumber is 4.
   //
   PlatformRegisterFvBootOption (
     PcdGetPtr (PcdAndroidFastbootFile), L"Android Fastboot", LOAD_OPTION_ACTIVE
@@ -459,7 +536,7 @@ PlatformRegisterOptionsAndKeys (
   KeyF.ScanCode    = SCAN_NULL;
   KeyF.UnicodeChar = 'f';
   Status = EfiBootManagerAddKeyOptionVariable (
-             NULL, 3, 0, &KeyF, NULL
+             NULL, 4, 0, &KeyF, NULL
              );
   ASSERT (Status == EFI_SUCCESS || Status == EFI_ALREADY_STARTED);
 }
