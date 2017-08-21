@@ -28,8 +28,10 @@
 
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
+#include <Library/CacheMaintenanceLib.h>
 #include <Library/DebugLib.h>
 #include <Library/DevicePathLib.h>
+#include <Library/IoLib.h>
 #include <Library/MemoryAllocationLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiRuntimeServicesTableLib.h>
@@ -42,6 +44,9 @@
 #define SERIAL_NUMBER_LBA                20
 #define RANDOM_MAX                       0x7FFFFFFFFFFFFFFF
 #define RANDOM_MAGIC                     0x9A4DBEAF
+
+#define ADB_REBOOT_ADDRESS               0x32100000
+#define ADB_REBOOT_BOOTLOADER            0x77665500
 
 typedef struct _FASTBOOT_PARTITION_LIST {
   LIST_ENTRY  Link;
@@ -613,6 +618,10 @@ HiKey960FastbootPlatformOemCommand (
     }
     Status = StoreSNToBlock (mFlashHandle, SERIAL_NUMBER_LBA, UnicodeSN);
     return Status;
+  } else if (AsciiStrCmp (Command, "reboot-bootloader") == 0) {
+    MmioWrite32 (ADB_REBOOT_ADDRESS, ADB_REBOOT_BOOTLOADER);
+    WriteBackInvalidateDataCacheRange ((VOID *)ADB_REBOOT_ADDRESS, 4);
+    return EFI_SUCCESS;
   } else {
     DEBUG ((DEBUG_ERROR,
       "HiKey960: Unrecognised Fastboot OEM command: %a\n",
