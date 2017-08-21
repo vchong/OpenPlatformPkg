@@ -27,6 +27,7 @@
 [LibraryClasses]
   BaseLib
   BaseMemoryLib
+  CacheMaintenanceLib
   DebugLib
   DevicePathLib
   MemoryAllocationLib
