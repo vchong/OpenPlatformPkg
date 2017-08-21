@@ -39,6 +39,7 @@
   DxeServicesTableLib
   FdtLib
   IoLib
+  NonDiscoverableDeviceRegistrationLib
   PcdLib
   PrintLib
   SerialPortLib
