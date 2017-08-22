@@ -369,6 +369,7 @@
   # Android Loader
   #
   gEmbeddedTokenSpaceGuid.PcdAndroidBootDevicePath|L"VenHw(0D51905B-B77E-452A-A2C0-ECA0CC8D514A,00003BFF0000000000)/UFS(0x0,0x3)/HD(7,GPT,D3340696-9B95-4C64-8DF6-E6D4548FBA41,0x12100,0x4000)"
+  gEmbeddedTokenSpaceGuid.PcdSdBootDevicePath|L"VenHw(0D51905B-B77E-452A-A2C0-ECA0CC8D514A,00F037FF0000000000)/SD(0x0)/HD(1,MBR,0x00000000,0x3F,0x21FC0)"
 
 [PcdsDynamicDefault.common]
   gEfiMdePkgTokenSpaceGuid.PcdPlatformBootTimeOut|10
@@ -435,6 +436,14 @@
   #
   OpenPlatformPkg/Drivers/Keyboard/VirtualKeyboardDxe/VirtualKeyboardDxe.inf
 
+  #
+  # MMC/SD
+  #
+  OpenPlatformPkg/Platforms/Hisilicon/HiKey960/HiKey960MmcDxe/HiKey960MmcDxe.inf
+  MdeModulePkg/Bus/Pci/NonDiscoverablePciDeviceDxe/NonDiscoverablePciDeviceDxe.inf
+  OpenPlatformPkg/Drivers/SdMmc/DwMmcHcDxe/DwMmcHcDxe.inf
+  MdeModulePkg/Bus/Sd/SdDxe/SdDxe.inf
+
   OpenPlatformPkg/Platforms/Hisilicon/HiKey960/HiKey960Dxe/HiKey960Dxe.inf
 
   #
@@ -468,7 +477,6 @@
   #
   # Ufs
   #
-  MdeModulePkg/Bus/Pci/NonDiscoverablePciDeviceDxe/NonDiscoverablePciDeviceDxe.inf
   OpenPlatformPkg/Drivers/Block/DwUfsHcDxe/DwUfsHcDxe.inf
   MdeModulePkg/Bus/Ufs/UfsPassThruDxe/UfsPassThruDxe.inf
   MdeModulePkg/Bus/Scsi/ScsiBusDxe/ScsiBusDxe.inf

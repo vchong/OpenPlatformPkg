@@ -123,6 +123,14 @@ READ_LOCK_STATUS   = TRUE
   #
   INF OpenPlatformPkg/Drivers/Keyboard/VirtualKeyboardDxe/VirtualKeyboardDxe.inf
 
+  #
+  # MMC/SD
+  #
+  INF OpenPlatformPkg/Platforms/Hisilicon/HiKey960/HiKey960MmcDxe/HiKey960MmcDxe.inf
+  INF MdeModulePkg/Bus/Pci/NonDiscoverablePciDeviceDxe/NonDiscoverablePciDeviceDxe.inf
+  INF OpenPlatformPkg/Drivers/SdMmc/DwMmcHcDxe/DwMmcHcDxe.inf
+  INF MdeModulePkg/Bus/Sd/SdDxe/SdDxe.inf
+
   INF OpenPlatformPkg/Platforms/Hisilicon/HiKey960/HiKey960Dxe/HiKey960Dxe.inf
 
   #
@@ -151,7 +159,6 @@ READ_LOCK_STATUS   = TRUE
   #
   # Ufs
   #
-  INF MdeModulePkg/Bus/Pci/NonDiscoverablePciDeviceDxe/NonDiscoverablePciDeviceDxe.inf
   INF OpenPlatformPkg/Drivers/Block/DwUfsHcDxe/DwUfsHcDxe.inf
   INF MdeModulePkg/Bus/Ufs/UfsPassThruDxe/UfsPassThruDxe.inf
   INF MdeModulePkg/Bus/Scsi/ScsiBusDxe/ScsiBusDxe.inf
