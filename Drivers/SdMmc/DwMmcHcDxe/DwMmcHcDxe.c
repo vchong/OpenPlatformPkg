@@ -613,6 +613,7 @@ DwMmcHcDriverBindingStart (
   CARD_TYPE_DETECT_ROUTINE        *Routine;
   UINT32                          RoutineNum;
   BOOLEAN                         Support64BitDma;
+  BOOLEAN                         MediaPresent;
   PLATFORM_DW_MMC_PROTOCOL        *PlatformDwMmc;
 
   Status = gBS->LocateProtocol (
@@ -703,6 +704,12 @@ DwMmcHcDriverBindingStart (
     }
 
     DumpCapabilityReg (Slot, &Private->Capability[Slot]);
+
+    MediaPresent = FALSE;
+    Status = DwMmcHcCardDetect (Private->PciIo, Slot, &MediaPresent);
+    if (MediaPresent == FALSE) {
+      continue;
+    }
 
     //
     // Initialize slot and start identification process for the new attached device

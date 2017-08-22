@@ -74,6 +74,7 @@
 #define IDSTS_FSM_DMA_RD                        6
 #define IDSTS_FSM_DMA_WR                        7
 #define IDSTS_FSM_DESC_CLOSE                    8
+#define IDSTS_FSM_MASK                          0xf
 
 #define CMD_UPDATE_CLK                          0x80202000
 #define CMD_START_BIT                           (1 << 31)
