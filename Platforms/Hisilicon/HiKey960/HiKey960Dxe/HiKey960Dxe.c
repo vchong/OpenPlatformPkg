@@ -21,6 +21,7 @@
 
 #include <Library/BaseLib.h>
 #include <Library/BaseMemoryLib.h>
+#include <Library/CacheMaintenanceLib.h>
 #include <Library/DebugLib.h>
 #include <Library/DevicePathLib.h>
 #include <Library/MemoryAllocationLib.h>
@@ -254,11 +255,70 @@ InitBoardId (
   return EFI_SUCCESS;
 }
 
+STATIC
+VOID
+InitSdCard (
+  IN VOID
+  )
+{
+  UINT32        Data;
+
+  // LDO16
+  Data = MmioRead32 (PMU_REG_BASE + (0x79 << 2)) & 7;
+  Data |= 6;
+  MmioWrite32 (PMU_REG_BASE + (0x79 << 2), Data);
+  MmioOr32 (PMU_REG_BASE + (0x78 << 2), 2);
+  MicroSecondDelay (100);
+
+  // LDO9
+  Data = MmioRead32 (PMU_REG_BASE + (0x6b << 2)) & 7;
+  Data |= 5;
+  MmioWrite32 (PMU_REG_BASE + (0x6b << 2), Data);
+  MmioOr32 (PMU_REG_BASE + (0x6a << 2), 2);
+  MicroSecondDelay (100);
+
+  // GPIO203
+  MmioWrite32 (0xfff11000 + (24 << 2), 0); // GPIO function
+
+  // SD pinmux
+  MmioWrite32 (0xff37e000 + 0x0, 1); // SD_CLK
+  MmioWrite32 (0xff37e000 + 0x4, 1); // SD_CMD
+  MmioWrite32 (0xff37e000 + 0x8, 1); // SD_DATA0
+  MmioWrite32 (0xff37e000 + 0xc, 1); // SD_DATA1
+  MmioWrite32 (0xff37e000 + 0x10, 1); // SD_DATA2
+  MmioWrite32 (0xff37e000 + 0x14, 1); // SD_DATA3
+  MmioWrite32 (0xff37e800 + 0x0, 15 << 4); // SD_CLK float with 32mA
+  MmioWrite32 (0xff37e800 + 0x4, (1 << 0) | (8 << 4)); // SD_CMD
+  MmioWrite32 (0xff37e800 + 0x8, (1 << 0) | (8 << 4)); // SD_DATA0
+  MmioWrite32 (0xff37e800 + 0xc, (1 << 0) | (8 << 4)); // SD_DATA1
+  MmioWrite32 (0xff37e800 + 0x10, (1 << 0) | (8 << 4)); // SD_DATA2
+  MmioWrite32 (0xff37e800 + 0x14, (1 << 0) | (8 << 4)); // SD_DATA3
+
+  do {
+    MmioOr32 (CRG_REG_BASE + 0xb8, (1 << 6) | (1 << 6 << 16) | (0 << 4) | (3 << 4 << 16));
+    Data = MmioRead32 (CRG_REG_BASE + 0xb8);
+  } while ((Data & ((1 << 6) | (3 << 4))) != ((1 << 6) | (0 << 4)));
+
+  // Unreset SD controller
+  MmioWrite32 (CRG_PERRSTDIS4, 1 << 18);
+  do {
+    Data = MmioRead32 (CRG_PERRSTSTAT4);
+  } while ((Data & (1 << 18)) == (1 << 18));
+  // Enable SD controller clock
+  MmioOr32 (CRG_REG_BASE + 0, 1 << 30);
+  MmioOr32 (CRG_REG_BASE + 0x40, 1 << 17);
+  do {
+    Data = MmioRead32 (CRG_REG_BASE + 0x48);
+  } while ((Data & (1 << 17)) != (1 << 17));
+}
+
 VOID
 InitPeripherals (
   IN VOID
   )
 {
+  InitSdCard ();
+
   // Enable wifi clock
   MmioOr32 (PMIC_HARDWARE_CTRL0, PMIC_HARDWARE_CTRL0_WIFI_CLK);
   MmioOr32 (PMIC_OSC32K_ONOFF_CTRL, PMIC_OSC32K_ONOFF_CTRL_EN_32K);
@@ -542,6 +602,7 @@ VirtualKeyboardClear (
   }
   if (MmioRead32 (ADB_REBOOT_ADDRESS) == ADB_REBOOT_BOOTLOADER) {
     MmioWrite32 (ADB_REBOOT_ADDRESS, ADB_REBOOT_NONE);
+    WriteBackInvalidateDataCacheRange ((VOID *)ADB_REBOOT_ADDRESS, 4);
   }
   return EFI_SUCCESS;
 }
@@ -597,6 +658,18 @@ HiKey960EntryPoint (
              NULL,
              1,
              FixedPcdGet32 (PcdDwUfsHcDxeBaseAddress),
+             SIZE_4KB
+             );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+  Status = RegisterNonDiscoverableMmioDevice (
+             NonDiscoverableDeviceTypeSdhci,
+             NonDiscoverableDeviceDmaTypeNonCoherent,
+             NULL,
+             NULL,
+             1,
+             0xFF37F000, // SD
              SIZE_4KB
              );
   if (EFI_ERROR (Status)) {
