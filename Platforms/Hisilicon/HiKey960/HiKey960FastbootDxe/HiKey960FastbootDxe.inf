@@ -30,6 +30,7 @@
   CacheMaintenanceLib
   DebugLib
   DevicePathLib
+  IoLib
   MemoryAllocationLib
   PcdLib
   UefiBootServicesTableLib
