@@ -1632,7 +1632,7 @@ DwMmcExecTrb (
   IN DW_MMC_HC_TRB                    *Trb
   )
 {
-  EFI_STATUS                          Status;
+  EFI_STATUS                          Status = EFI_SUCCESS;
   EFI_SD_MMC_PASS_THRU_COMMAND_PACKET *Packet;
   UINT32                              Slot;
   UINT32                              Fsm;
