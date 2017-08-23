@@ -26,32 +26,25 @@
 #include <Protocol/EmbeddedGpio.h>
 #include <Protocol/PlatformDwMmc.h>
 
-#include <Hi6220.h>
+#include <Hi3660.h>
 
-#define DETECT_SD_CARD           8     // GPIO 1_0
+#define DETECT_SD_CARD           203     // GPIO 25_3
 
 DW_MMC_HC_SLOT_CAP
-DwMmcCapability[2] = {
+DwMmcCapability[1] = {
   {
-    .Ddr50       = 1,
-    .HighSpeed   = 1,
-    .BusWidth    = 8,
-    .SlotType    = EmbeddedSlot,
-    .CardType    = EmmcCardType,
-    .BaseClkFreq = 100
-  }, {
     .HighSpeed   = 1,
     .BusWidth    = 4,
     .SlotType    = RemovableSlot,
     .CardType    = SdCardType,
-    .BaseClkFreq = 100,
+    .BaseClkFreq = 200,
     .Voltage30   = 1
   }
 };
 
 EFI_STATUS
 EFIAPI
-HiKeyGetCapability (
+HiKey960GetCapability (
   IN     EFI_HANDLE           Controller,
   IN     UINT8                Slot,
      OUT DW_MMC_HC_SLOT_CAP   *Capability
@@ -65,11 +58,6 @@ HiKeyGetCapability (
     CopyMem (Capability, &DwMmcCapability[0], sizeof (DW_MMC_HC_SLOT_CAP));
   } else if (DwMmcCapability[0].Controller == Controller) {
     CopyMem (Capability, &DwMmcCapability[0], sizeof (DW_MMC_HC_SLOT_CAP));
-  } else if (DwMmcCapability[1].Controller == 0) {
-    DwMmcCapability[1].Controller = Controller;
-    CopyMem (Capability, &DwMmcCapability[1], sizeof (DW_MMC_HC_SLOT_CAP));
-  } else if (DwMmcCapability[1].Controller == Controller) {
-    CopyMem (Capability, &DwMmcCapability[1], sizeof (DW_MMC_HC_SLOT_CAP));
   } else {
     return EFI_INVALID_PARAMETER;
   }
@@ -78,7 +66,7 @@ HiKeyGetCapability (
 
 BOOLEAN
 EFIAPI
-HiKeyCardDetect (
+HiKey960CardDetect (
   IN UINT8                    Slot
   )
 {
@@ -87,40 +75,37 @@ HiKeyCardDetect (
   UINTN                 Value;
 
   if (Slot == 0) {
-    return TRUE;
-  } else if (Slot == 1) {
     Status = gBS->LocateProtocol (&gEmbeddedGpioProtocolGuid, NULL, (VOID **)&Gpio);
     if (EFI_ERROR (Status)) {
       DEBUG ((DEBUG_ERROR, "Failed to get GPIO protocol: %r\n", Status));
-      return FALSE;
+      goto Exit;
     }
     Status = Gpio->Set (Gpio, DETECT_SD_CARD, GPIO_MODE_INPUT);
     if (EFI_ERROR (Status)) {
       DEBUG ((DEBUG_ERROR, "Failed to sed GPIO as input mode: %r\n", Status));
-      return FALSE;
+      goto Exit;
     }
     Status = Gpio->Get (Gpio, DETECT_SD_CARD, &Value);
     if (EFI_ERROR (Status)) {
       DEBUG ((DEBUG_ERROR, "Failed to get GPIO value: %r\n", Status));
-      return FALSE;
+      goto Exit;
     }
     if (Value == 0) {
       return TRUE;
     }
-    return FALSE;
-  } else {
-    return FALSE;
   }
+Exit:
+  return FALSE;
 }
 
 PLATFORM_DW_MMC_PROTOCOL mDwMmcDevice = {
-  HiKeyGetCapability,
-  HiKeyCardDetect
+  HiKey960GetCapability,
+  HiKey960CardDetect
 };
 
 EFI_STATUS
 EFIAPI
-HiKeyMmcEntryPoint (
+HiKey960MmcEntryPoint (
   IN EFI_HANDLE                            ImageHandle,
   IN EFI_SYSTEM_TABLE                      *SystemTable
   )

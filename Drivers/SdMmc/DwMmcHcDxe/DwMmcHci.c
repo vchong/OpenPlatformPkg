@@ -528,7 +528,21 @@ DwMmcHcCardDetect (
      OUT BOOLEAN            *MediaPresent
   )
 {
-  *MediaPresent = TRUE;
+  PLATFORM_DW_MMC_PROTOCOL  *PlatformDwMmc;
+  EFI_STATUS                Status;
+
+  if (MediaPresent == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+  Status = gBS->LocateProtocol (
+                  &gPlatformDwMmcProtocolGuid,
+                  NULL,
+                  (VOID **) &PlatformDwMmc
+                  );
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+  *MediaPresent = PlatformDwMmc->CardDetect (Slot);
   return EFI_SUCCESS;
 }
 
@@ -1537,12 +1551,12 @@ DwSdExecTrb (
   if (EFI_ERROR (Status)) {
     return Status;
   }
-
+  MicroSecondDelay (50000);
   ErrMask = DW_MMC_INT_EBE | DW_MMC_INT_HLE | DW_MMC_INT_RTO |
             DW_MMC_INT_RCRC | DW_MMC_INT_RE;
   ErrMask |= DW_MMC_INT_DCRC | DW_MMC_INT_DRT | DW_MMC_INT_SBE;
   do {
-    MicroSecondDelay (3500);
+    MicroSecondDelay (500);
     Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_RINTSTS, TRUE, sizeof (IntStatus), &IntStatus);
     if (EFI_ERROR (Status)) {
       return Status;
@@ -1631,7 +1645,7 @@ DwMmcExecTrb (
     if (EFI_ERROR (Status)) {
       return Status;
     }
-    if (Fsm == IDSTS_FSM_DMA_IDLE) {
+    if ((Fsm == IDSTS_FSM_DMA_IDLE) || (Fsm == IDSTS_FSM_MASK)) {
       break;
     }
   }

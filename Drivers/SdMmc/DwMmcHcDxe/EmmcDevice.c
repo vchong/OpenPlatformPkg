@@ -956,6 +956,7 @@ EmmcIdentification (
   UINT32                         Ocr;
   UINT16                         Rca;
   UINT32                         DevStatus;
+  UINT32                         Timeout;
 
   PciIo    = Private->PciIo;
   PassThru = &Private->PassThru;
@@ -966,12 +967,16 @@ EmmcIdentification (
     return Status;
   }
 
+  Timeout = 30;
   do {
     Ocr = EMMC_CMD1_CAPACITY_GREATER_THAN_2GB;
     Status = EmmcGetOcr (PassThru, Slot, &Ocr);
     if (EFI_ERROR (Status)) {
       DEBUG ((DEBUG_INFO, "EmmcIdentification: Executing Cmd1 fails with %r\n", Status));
       return Status;
+    }
+    if (--Timeout <= 0) {
+      return EFI_DEVICE_ERROR;
     }
     MicroSecondDelay (100);
   } while ((Ocr & BIT31) == 0);

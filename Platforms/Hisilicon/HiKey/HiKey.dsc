@@ -340,12 +340,6 @@
   gEmbeddedTokenSpaceGuid.PcdMetronomeTickPeriod|1000
 
   #
-  # DW MMC/SD card controller
-  #
-  #gDwEmmcDxeTokenSpaceGuid.PcdDwEmmcDxeBaseAddress|0xF723D000
-  #gDwEmmcDxeTokenSpaceGuid.PcdDwEmmcDxeClockFrequencyInHz|100000000
-
-  #
   # DW USB controller
   #
   gDwUsbDxeTokenSpaceGuid.PcdDwUsbDxeBaseAddress|0xF72C0000
