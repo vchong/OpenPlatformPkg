@@ -45,7 +45,7 @@ DwMmcCapability[2] = {
     .SlotType    = RemovableSlot,
     .CardType    = SdCardType,
     .BaseClkFreq = 100,
-    .Voltage18   = 1
+    .Voltage30   = 1
   }
 };
 
@@ -57,33 +57,6 @@ HiKeyGetCapability (
      OUT DW_MMC_HC_SLOT_CAP   *Capability
   )
 {
-#if 0
-  if (Capability == NULL) {
-    return EFI_INVALID_PARAMETER;
-  }
-  if (Handle == 0) {
-    Capability->Handle = Handle;
-  }
-  if (Slot == 0) {
-    Capability->Ddr50 = 1;
-    Capability->HighSpeed = 1;
-    Capability->BusWidth = 8;
-    Capability->SlotType = EmbeddedSlot;
-    Capability->CardType = EmmcCardType;
-    Capability->BaseClkFreq = 100;
-  } else if (Slot == 1) {
-    Capability->Ddr50 = 1;
-    Capability->HighSpeed = 1;
-    Capability->BusWidth = 1;
-    Capability->SlotType = RemovableSlot;
-    Capability->CardType = SdCardType;
-    Capability->BaseClkFreq = 100;
-    Capability->Voltage18 = 1;
-  } else {
-    return EFI_INVALID_PARAMETER;
-  }
-  return EFI_SUCCESS;
-#else
   if (Capability == NULL) {
     return EFI_INVALID_PARAMETER;
   }
@@ -101,7 +74,6 @@ HiKeyGetCapability (
     return EFI_INVALID_PARAMETER;
   }
   return EFI_SUCCESS;
-#endif
 }
 
 BOOLEAN
