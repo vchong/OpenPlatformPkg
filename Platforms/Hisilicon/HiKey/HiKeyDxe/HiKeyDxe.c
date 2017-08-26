@@ -323,6 +323,7 @@ VirtualKeyboardClear (
   }
   if (MmioRead32 (ADB_REBOOT_ADDRESS) == ADB_REBOOT_BOOTLOADER) {
     MmioWrite32 (ADB_REBOOT_ADDRESS, ADB_REBOOT_NONE);
+    WriteBackInvalidateDataCacheRange ((VOID *)ADB_REBOOT_ADDRESS, 4);
   }
   return EFI_SUCCESS;
 }
