@@ -1416,7 +1416,7 @@ DwEmmcExecTrb (
     if (IntStatus & DW_MMC_INT_DTO) {  // Transfer Done
       break;
     }
-  } while (!(MmcStatus & DW_MMC_INT_CMD_DONE));
+  } while (!(IntStatus & DW_MMC_INT_CMD_DONE));
   switch (Packet->SdMmcCmdBlk->ResponseType) {
     case SdMmcResponseTypeR1:
     case SdMmcResponseTypeR1b:
@@ -1567,7 +1567,7 @@ DwSdExecTrb (
     if (IntStatus & DW_MMC_INT_DTO) {  // Transfer Done
       break;
     }
-  } while (!(MmcStatus & DW_MMC_INT_CMD_DONE));
+  } while (!(IntStatus & DW_MMC_INT_CMD_DONE));
   switch (Packet->SdMmcCmdBlk->ResponseType) {
     case SdMmcResponseTypeR1:
     case SdMmcResponseTypeR1b:
