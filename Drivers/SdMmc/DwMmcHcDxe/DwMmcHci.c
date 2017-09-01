@@ -1084,6 +1084,8 @@ BuildDmaDescTable (
   if (EFI_ERROR (Status)) {
     return Status;
   }
+  ArmDataSynchronizationBarrier ();
+  ArmInstructionSynchronizationBarrier ();
   // Clear interrupts
   Idsts = ~0;
   Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_IDSTS, FALSE, sizeof (Idsts), &Idsts);
@@ -1477,10 +1479,14 @@ DwSdExecTrb (
   UINT32                              IntStatus;
   UINT32                              Argument;
   UINT32                              ErrMask;
+  UINT32                              Timeout;
+  UINT32                              Idsts;
 
   Packet = Trb->Packet;
   PciIo  = Trb->Private->PciIo;
 
+  ArmDataSynchronizationBarrier ();
+  ArmInstructionSynchronizationBarrier ();
   // Wait until MMC is idle
   do {
     Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_STATUS, TRUE, sizeof (MmcStatus), &MmcStatus);
@@ -1516,12 +1522,6 @@ DwSdExecTrb (
     case SD_GO_IDLE_STATE:
       Cmd |= BIT_CMD_SEND_INIT;
       break;
-    case SD_SEND_OP_COND:
-      Cmd |= BIT_CMD_RESPONSE_EXPECT | BIT_CMD_WAIT_PRVDATA_COMPLETE;
-      break;
-    case SD_SWITCH_FUNC:
-      Cmd |= BIT_CMD_RESPONSE_EXPECT | BIT_CMD_CHECK_RESPONSE_CRC;
-      break;
     }
   }
   switch (Packet->SdMmcCmdBlk->ResponseType) {
@@ -1547,16 +1547,22 @@ DwSdExecTrb (
   if (EFI_ERROR (Status)) {
     return Status;
   }
+  ArmDataSynchronizationBarrier ();
+  ArmInstructionSynchronizationBarrier ();
   Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_CMD, FALSE, sizeof (Cmd), &Cmd);
   if (EFI_ERROR (Status)) {
     return Status;
   }
-  MicroSecondDelay (50000);
+  ArmDataSynchronizationBarrier ();
+  ArmInstructionSynchronizationBarrier ();
+  if (Private->Slot[Trb->Slot].Initialized == FALSE) {
+    MicroSecondDelay (50000);
+  }
   ErrMask = DW_MMC_INT_EBE | DW_MMC_INT_HLE | DW_MMC_INT_RTO |
             DW_MMC_INT_RCRC | DW_MMC_INT_RE;
   ErrMask |= DW_MMC_INT_DCRC | DW_MMC_INT_DRT | DW_MMC_INT_SBE;
+  Timeout = 10000;
   do {
-    MicroSecondDelay (500);
     Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_RINTSTS, TRUE, sizeof (IntStatus), &IntStatus);
     if (EFI_ERROR (Status)) {
       return Status;
@@ -1567,7 +1573,26 @@ DwSdExecTrb (
     if (IntStatus & DW_MMC_INT_DTO) {  // Transfer Done
       break;
     }
+    if (--Timeout == 0) {
+      break;
+    }
+    MicroSecondDelay (10);
   } while (!(IntStatus & DW_MMC_INT_CMD_DONE));
+  if (Packet->InTransferLength) {
+    do {
+      Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_IDSTS, TRUE, sizeof (Idsts), &Idsts);
+      if (EFI_ERROR (Status)) {
+        return Status;
+      }
+    } while ((Idsts & BIT1) == 0);
+  } else if (Packet->OutTransferLength) {
+    do {
+      Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_IDSTS, TRUE, sizeof (Idsts), &Idsts);
+      if (EFI_ERROR (Status)) {
+        return Status;
+      }
+    } while ((Idsts & BIT0) == 0);
+  }
   switch (Packet->SdMmcCmdBlk->ResponseType) {
     case SdMmcResponseTypeR1:
     case SdMmcResponseTypeR1b:
@@ -1633,22 +1658,8 @@ DwMmcExecTrb (
   )
 {
   EFI_STATUS                          Status = EFI_SUCCESS;
-  EFI_SD_MMC_PASS_THRU_COMMAND_PACKET *Packet;
   UINT32                              Slot;
-  UINT32                              Fsm;
-  UINT32                              Idsts;
 
-  Packet = Trb->Packet;
-  while (Packet->InTransferLength || Packet->OutTransferLength) {
-    Status = DwMmcHcRwMmio (Private->PciIo, Trb->Slot, DW_MMC_IDSTS, TRUE, sizeof (Idsts), &Idsts);
-    Fsm = GET_IDSTS_DMAC_FSM (Idsts);
-    if (EFI_ERROR (Status)) {
-      return Status;
-    }
-    if ((Fsm == IDSTS_FSM_DMA_IDLE) || (Fsm == IDSTS_FSM_MASK)) {
-      break;
-    }
-  }
   Slot = Trb->Slot;
   if (Private->Slot[Slot].CardType == EmmcCardType) {
     Status = DwEmmcExecTrb (Private, Trb);

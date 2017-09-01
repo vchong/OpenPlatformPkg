@@ -38,6 +38,7 @@
   SdDevice.c
 
 [Packages]
+  ArmPkg/ArmPkg.dec
   MdeModulePkg/MdeModulePkg.dec
   MdePkg/MdePkg.dec
   OpenPlatformPkg/Drivers/SdMmc/DwMmcHcDxe/DwMmcHcDxe.dec
