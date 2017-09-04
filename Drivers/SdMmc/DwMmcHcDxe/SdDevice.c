@@ -1023,6 +1023,7 @@ SdCardIdentification (
   if (EFI_ERROR (Status)) {
     return Status;
   }
+  Private->Slot[Slot].Initialized = TRUE;
 
   return Status;
 }

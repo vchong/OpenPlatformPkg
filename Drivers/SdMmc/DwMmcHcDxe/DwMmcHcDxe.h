@@ -21,24 +21,25 @@
 
 #include <Uefi.h>
 
-#include <IndustryStandard/Pci.h>
 #include <IndustryStandard/Emmc.h>
+#include <IndustryStandard/Pci.h>
 #include <IndustryStandard/Sd.h>
 
-#include <Library/UefiDriverEntryPoint.h>
-#include <Library/DebugLib.h>
-#include <Library/UefiBootServicesTableLib.h>
+#include <Library/ArmLib.h>
 #include <Library/BaseMemoryLib.h>
-#include <Library/MemoryAllocationLib.h>
-#include <Library/UefiLib.h>
+#include <Library/DebugLib.h>
 #include <Library/DevicePathLib.h>
+#include <Library/MemoryAllocationLib.h>
+#include <Library/UefiBootServicesTableLib.h>
+#include <Library/UefiDriverEntryPoint.h>
+#include <Library/UefiLib.h>
 
+#include <Protocol/ComponentName.h>
+#include <Protocol/ComponentName2.h>
 #include <Protocol/DevicePath.h>
 #include <Protocol/DriverBinding.h>
 #include <Protocol/PciIo.h>
 #include <Protocol/PlatformDwMmc.h>
-#include <Protocol/ComponentName.h>
-#include <Protocol/ComponentName2.h>
 #include <Protocol/SdMmcPassThru.h>
 
 #include "DwMmcHci.h"
