@@ -70,11 +70,11 @@ extern EFI_DRIVER_BINDING_PROTOCOL  gDwMmcHcDriverBinding;
 #define DW_MMC_HC_ENUM_TIMER    EFI_TIMER_PERIOD_MILLISECONDS(100)
 
 typedef struct {
-  BOOLEAN                           Enable;
-  EFI_SD_MMC_SLOT_TYPE              SlotType;
-  BOOLEAN                           MediaPresent;
-  BOOLEAN                           Initialized;
-  SD_MMC_CARD_TYPE                  CardType;
+  BOOLEAN                             Enable;
+  EFI_SD_MMC_SLOT_TYPE                SlotType;
+  BOOLEAN                             MediaPresent;
+  BOOLEAN                             Initialized;
+  SD_MMC_CARD_TYPE                    CardType;
 } DW_MMC_HC_SLOT;
 
 typedef struct {
@@ -137,6 +137,7 @@ typedef struct {
   EFI_PHYSICAL_ADDRESS                DmaDescPhy;
   UINT32                              DmaDescPages;
   VOID                                *DmaMap;
+  BOOLEAN                             UseDma;
 
   DW_MMC_HC_PRIVATE_DATA              *Private;
 } DW_MMC_HC_TRB;

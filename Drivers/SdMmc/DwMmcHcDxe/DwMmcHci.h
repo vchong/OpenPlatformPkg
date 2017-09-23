@@ -52,9 +52,11 @@
 #define DW_MMC_RINTSTS                0x044
 #define DW_MMC_STATUS                 0x048
 #define DW_MMC_FIFOTH                 0x04c
+#define DW_MMC_GPIO                   0x058
 #define DW_MMC_DEBNCE                 0x064
 #define DW_MMC_USRID                  0x068
 #define DW_MMC_VERID                  0x06c
+#define DW_MMC_HCON                   0x070
 #define DW_MMC_UHSREG                 0x074
 #define DW_MMC_BMOD                   0x080
 #define DW_MMC_DBADDR                 0x088
@@ -63,6 +65,8 @@
 #define DW_MMC_DSCADDR                0x094
 #define DW_MMC_BUFADDR                0x098
 #define DW_MMC_CARDTHRCTL             0x100
+#define DW_MMC_UHSREG_EXT             0x108
+#define DW_MMC_ENABLE_SHIFT           0x110
 #define DW_MMC_FIFO_START             0x200
 
 #define GET_IDSTS_DMAC_FSM(x)                   (((x) >> 13) & 0xf)
@@ -149,6 +153,8 @@
 #define DW_MMC_CTRL_RESET_ALL                   (DW_MMC_CTRL_RESET | DW_MMC_CTRL_FIFO_RESET | DW_MMC_CTRL_DMA_RESET)
 
 #define DW_MMC_STS_DATA_BUSY                    (1 << 9)
+#define DW_MMC_STS_FIFO_COUNT(x)                (((x) & 0x1fff) << 17)   /* Number of filled locations in FIFO */
+#define GET_STS_FIFO_COUNT(x)                   (((x) >> 17) & 0x1fff)
 
 #define DW_MMC_BMOD_SWR                         (1 << 0)         /* Software Reset */
 #define DW_MMC_BMOD_FB                          (1 << 1)         /* Fix Burst */
@@ -157,14 +163,24 @@
 #define DW_MMC_IDSTS_TI                         (1 << 0)         /* Transmit Interrupt */
 #define DW_MMC_IDSTS_RI                         (1 << 1)         /* Receive Interrupt */
 
-#define DW_MMC_FIFO_TWMARK(x)                   (x & 0xfff)
-#define DW_MMC_FIFO_RWMARK(x)                   ((x & 0x1ff) << 16)
-#define DW_MMC_DMA_BURST_SIZE(x)                ((x & 0x7) << 28)
+#define DW_MMC_FIFO_TWMARK(x)                   ((x) & 0xfff)
+#define DW_MMC_FIFO_RWMARK(x)                   (((x) & 0x1ff) << 16)
+#define DW_MMC_DMA_BURST_SIZE(x)                (((x) & 0x7) << 28)
 
-#define DW_MMC_CARD_RD_THR(x)                   ((x & 0xfff) << 16)
+#define DW_MMC_CARD_RD_THR(x)                   (((x) & 0xfff) << 16)
 #define DW_MMC_CARD_RD_THR_EN                   (1 << 0)
 
 #define UHS_DDR_MODE                            (1 << 16)
+
+#define GENCLK_DIV                              7
+
+#define DW_MMC_GPIO_CLK_DIV(x)                  (((x) & 0xf) << 8)
+#define DW_MMC_GPIO_USE_SAMPLE_DLY(x)           (((x) & 1) << 13)
+#define DW_MMC_GPIO_CLK_ENABLE                  BIT16
+
+#define UHSEXT_SAMPLE_PHASE(x)                  (((x) & 0x1f) << 16)
+#define UHSEXT_SAMPLE_DRVPHASE(x)               (((x) & 0x1f) << 21)
+#define UHSEXT_SAMPLE_DLY(x)                    (((x) & 0x1f) << 26)
 
 #define DWMMC_DMA_BUF_SIZE                      (512 * 8)
 #define DWMMC_FIFO_THRESHOLD                    16

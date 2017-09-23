@@ -918,6 +918,8 @@ SdCardIdentification (
   BOOLEAN                        Xpc;
   BOOLEAN                        S18r;
   UINT64                         MaxCurrent;
+  SD_SCR                         Scr;
+  SD_CSD                         Csd;
 
   PciIo    = Private->PciIo;
   PassThru = &Private->PassThru;
@@ -941,7 +943,7 @@ SdCardIdentification (
   // 3. Send SDIO Cmd5 to the device to the SDIO device OCR register.
   //
   Status = SdioSendOpCond (PassThru, Slot, 0, FALSE);
-  if (!EFI_ERROR (Status)) {
+  if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_INFO, "SdCardIdentification: Found SDIO device, ignore it as we don't support\n"));
     return EFI_DEVICE_ERROR;
   }
@@ -1011,6 +1013,24 @@ SdCardIdentification (
   Status = SdCardSelect (PassThru, Slot, Rca);
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "SdCardIdentification: Selecting card fails with %r\n", Status));
+    return Status;
+  }
+
+  Status = SdCardSwitchBusWidth (PciIo, PassThru, Slot, Rca, FALSE, 1);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "SdCardIdentification: Executing SdCardSwitchBusWidth fails with %r\n", Status));
+    return Status;
+  }
+
+  Status = SdCardGetScr (PassThru, Slot, Rca, &Scr);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "SdCardIdentification: Executing SdCardGetScr fails with %r\n", Status));
+    return Status;
+  }
+
+  Status = SdCardGetCsd (PassThru, Slot, Rca, &Csd);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "SdCardIdentification: Executing SdCardGetCsd fails with %r\n", Status));
     return Status;
   }
   //
