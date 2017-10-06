@@ -733,6 +733,10 @@ HiKeyFastbootPlatformGetVar (
     } else {
       AsciiStrCpy (Value, "raw");
     }
+  } else if ( !AsciiStrCmp (Name, "erase-block-size")) {
+    AsciiSPrint (Value, 12, "0x%llx", HIKEY_ERASE_SIZE);
+  } else if ( !AsciiStrCmp (Name, "logical-block-size")) {
+    AsciiSPrint (Value, 12, "0x%llx", EFI_PAGE_SIZE);
   } else {
     *Value = '\0';
   }
