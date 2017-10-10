@@ -48,6 +48,8 @@
 #define ADB_REBOOT_ADDRESS               0x32100000
 #define ADB_REBOOT_BOOTLOADER            0x77665500
 
+#define UFS_BLOCK_SIZE                   4096
+
 typedef struct _FASTBOOT_PARTITION_LIST {
   LIST_ENTRY  Link;
   CHAR16      PartitionName[PARTITION_NAME_MAX_LENGTH];
@@ -593,6 +595,10 @@ HiKey960FastbootPlatformGetVar (
     } else {
       AsciiStrCpy (Value, "raw");
     }
+  } else if ( !AsciiStrCmp (Name, "erase-block-size")) {
+    AsciiSPrint (Value, 12, "0x%llx", UFS_BLOCK_SIZE);
+  } else if ( !AsciiStrCmp (Name, "logical-block-size")) {
+    AsciiSPrint (Value, 12, "0x%llx", UFS_BLOCK_SIZE);
   } else {
     *Value = '\0';
   }
