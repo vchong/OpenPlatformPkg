@@ -50,8 +50,7 @@
 #define SERIAL_NUMBER_LENGTH      16
 #define BOOT_DEVICE_LENGTH        16
 
-#define HIKEY_ERASE_SIZE          (16 * 1024 * 1024)
-#define HIKEY_ERASE_BLOCKS        (HIKEY_ERASE_SIZE / EFI_PAGE_SIZE)
+#define HIKEY_ERASE_SIZE          512
 
 typedef struct _FASTBOOT_PARTITION_LIST {
   LIST_ENTRY  Link;
@@ -736,7 +735,7 @@ HiKeyFastbootPlatformGetVar (
   } else if ( !AsciiStrCmp (Name, "erase-block-size")) {
     AsciiSPrint (Value, 12, "0x%llx", HIKEY_ERASE_SIZE);
   } else if ( !AsciiStrCmp (Name, "logical-block-size")) {
-    AsciiSPrint (Value, 12, "0x%llx", EFI_PAGE_SIZE);
+    AsciiSPrint (Value, 12, "0x%llx", HIKEY_ERASE_SIZE);
   } else {
     *Value = '\0';
   }

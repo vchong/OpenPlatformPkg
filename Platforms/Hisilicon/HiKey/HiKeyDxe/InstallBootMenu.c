@@ -244,8 +244,8 @@ HiKeyCreateBootEntry (
 
   if (BootArgs) {
     /* Always force the BootArgs to save 512 characters. */
-    ASSERT (StrSize(BootArgs) <= 512);
-    BdsLoadOption->OptionalDataSize = 512;
+    ASSERT (StrSize(BootArgs) <= 512 * sizeof (CHAR16));
+    BdsLoadOption->OptionalDataSize = 512 * sizeof (CHAR16);
     BdsLoadOption->OptionalData = (CHAR16*)AllocateZeroPool (BdsLoadOption->OptionalDataSize);
     ASSERT (BdsLoadOption->OptionalData != NULL);
     StrCpy (BdsLoadOption->OptionalData, BootArgs);
