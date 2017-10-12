@@ -350,6 +350,11 @@
   #
   gHiKeyTokenSpaceGuid.PcdBootImagePath|L"VenHw(B549F005-4BD4-4020-A0CB-06F42BDA68C3)/HD(6,GPT,5C0F213C-17E1-4149-88C8-8B50FB4EC70E)"
 
+  #
+  # Variable Size
+  #
+  gEfiMdeModulePkgTokenSpaceGuid.PcdMaxVariableSize|2048
+
 [PcdsDynamicDefault.common]
   #
   # The size of a dynamic PCD of the (VOID*) type can not be increased at run
