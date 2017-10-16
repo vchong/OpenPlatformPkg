@@ -692,12 +692,6 @@ DwMmcHcClockSupply (
   } while (EFI_ERROR (Status));
 
   do {
-    // Enable MMC clock
-    ClkEna = 1;
-    Status = DwMmcHcRwMmio (PciIo, Slot, DW_MMC_CLKENA, FALSE, sizeof (ClkEna), &ClkEna);
-    if (EFI_ERROR (Status)) {
-      continue;
-    }
     ClkSrc = 0;
     Status = DwMmcHcRwMmio (PciIo, Slot, DW_MMC_CLKSRC, FALSE, sizeof (ClkSrc), &ClkSrc);
     if (EFI_ERROR (Status)) {
@@ -705,6 +699,12 @@ DwMmcHcClockSupply (
     }
     // Set clock divisor
     Status = DwMmcHcRwMmio (PciIo, Slot, DW_MMC_CLKDIV, FALSE, sizeof (Divisor), &Divisor);
+    if (EFI_ERROR (Status)) {
+      continue;
+    }
+    // Enable MMC clock
+    ClkEna = 1;
+    Status = DwMmcHcRwMmio (PciIo, Slot, DW_MMC_CLKENA, FALSE, sizeof (ClkEna), &ClkEna);
     if (EFI_ERROR (Status)) {
       continue;
     }
@@ -885,7 +885,7 @@ DwMmcHcInitPowerVoltage (
     return Status;
   }
 
-  Data = DW_MMC_CTRL_INT_EN | DW_MMC_CTRL_DMA_EN | DW_MMC_CTRL_IDMAC_EN;
+  Data = DW_MMC_CTRL_INT_EN;
   Status = DwMmcHcRwMmio (PciIo, Slot, DW_MMC_CTRL, FALSE, sizeof (Data), &Data);
   return Status;
 }
@@ -948,7 +948,102 @@ DwMmcHcInitHost (
   if (EFI_ERROR (Status)) {
     return Status;
   }
+  return Status;
+}
 
+EFI_STATUS
+DwMmcHcStartDma (
+  IN DW_MMC_HC_PRIVATE_DATA           *Private,
+  IN DW_MMC_HC_TRB                    *Trb
+  )
+{
+  EFI_STATUS                          Status;
+  EFI_PCI_IO_PROTOCOL                 *PciIo;
+  UINT32                              Ctrl;
+  UINT32                              Bmod;
+
+  PciIo  = Trb->Private->PciIo;
+
+  // Reset DMA
+  Ctrl = DW_MMC_CTRL_DMA_RESET;
+  Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_CTRL, FALSE, sizeof (Ctrl), &Ctrl);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "DwMmcHcStartDma: reset fails: %r\n", Status));
+    return Status;
+  }
+  Status = DwMmcHcWaitMmioSet (
+             PciIo,
+             Trb->Slot,
+             DW_MMC_CTRL,
+             sizeof (Ctrl),
+             DW_MMC_CTRL_DMA_RESET,
+             0x00,
+             DW_MMC_HC_GENERIC_TIMEOUT
+             );
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_INFO, "DwMmcHcStartDma: reset done with %r\n", Status));
+    return Status;
+  }
+  Bmod = DW_MMC_IDMAC_SWRESET;
+  Status = DwMmcHcOrMmio (PciIo, Trb->Slot, DW_MMC_BMOD, sizeof (Bmod), &Bmod);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "DwMmcHcStartDma: set BMOD fail: %r\n", Status));
+    return Status;
+  }
+
+  // Select IDMAC
+  Ctrl = DW_MMC_CTRL_IDMAC_EN;
+  Status = DwMmcHcOrMmio (PciIo, Trb->Slot, DW_MMC_CTRL, sizeof (Ctrl), &Ctrl);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "DwMmcHcStartDma: init IDMAC fail: %r\n", Status));
+    return Status;
+  }
+
+  // Enable IDMAC
+  Bmod = DW_MMC_IDMAC_ENABLE | DW_MMC_IDMAC_FB;
+  Status = DwMmcHcOrMmio (PciIo, Trb->Slot, DW_MMC_BMOD, sizeof (Bmod), &Bmod);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "DwMmcHcReset: set BMOD failure: %r\n", Status));
+    return Status;
+  }
+  return Status;
+}
+
+EFI_STATUS
+DwMmcHcStopDma (
+  IN DW_MMC_HC_PRIVATE_DATA           *Private,
+  IN DW_MMC_HC_TRB                    *Trb
+  )
+{
+  EFI_STATUS                          Status;
+  EFI_PCI_IO_PROTOCOL                 *PciIo;
+  UINT32                              Ctrl;
+  UINT32                              Bmod;
+
+  PciIo  = Trb->Private->PciIo;
+
+  // Disable and reset IDMAC
+  Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_CTRL, TRUE, sizeof (Ctrl), &Ctrl);
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+  Ctrl &= ~DW_MMC_CTRL_IDMAC_EN;
+  Ctrl |= DW_MMC_CTRL_DMA_RESET;
+  Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_CTRL, FALSE, sizeof (Ctrl), &Ctrl);
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+  // Stop IDMAC
+  Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_BMOD, TRUE, sizeof (Bmod), &Bmod);
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
+  Bmod &= ~(DW_MMC_BMOD_FB | DW_MMC_BMOD_DE);
+  Bmod |= DW_MMC_BMOD_SWR;
+  Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_BMOD, FALSE, sizeof (Bmod), &Bmod);
+  if (EFI_ERROR (Status)) {
+    return Status;
+  }
   return Status;
 }
 
@@ -980,6 +1075,7 @@ BuildDmaDescTable (
   UINT32                    DmaDescPhy;
   UINT32                    Idsts;
   UINT32                    BytCnt;
+  UINT32                    BlkSize;
 
   Data    = Trb->DataPhy;
   DataLen = Trb->DataLen;
@@ -1055,13 +1151,25 @@ BuildDmaDescTable (
     return EFI_DEVICE_ERROR;
   }
 
-  BytCnt = DW_MMC_BLOCK_SIZE * Blocks;
+  if (DataLen < DW_MMC_BLOCK_SIZE) {
+    BlkSize = DataLen;
+    BytCnt = DataLen;
+    Remaining = DataLen;
+  } else {
+    BlkSize = DW_MMC_BLOCK_SIZE;
+    BytCnt = DW_MMC_BLOCK_SIZE * Blocks;
+    Remaining = DW_MMC_BLOCK_SIZE * Blocks;
+  }
+  Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_BLKSIZ, FALSE, sizeof (BlkSize), &BlkSize);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "BuildDmaDescTable: set block size fails: %r\n", Status));
+    return Status;
+  }
   Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_BYTCNT, FALSE, sizeof (BytCnt), &BytCnt);
   if (EFI_ERROR (Status)) {
     return Status;
   }
   DmaDesc = Trb->DmaDesc;
-  Remaining = DW_MMC_BLOCK_SIZE * Blocks;
   for (Index = 0; Index < Entries; Index++, DmaDesc++) {
     DmaDesc->Des0 = DW_MMC_IDMAC_DES0_OWN | DW_MMC_IDMAC_DES0_CH |
                     DW_MMC_IDMAC_DES0_DIC;
@@ -1075,7 +1183,8 @@ BuildDmaDescTable (
   // First Descriptor
   Trb->DmaDesc[0].Des0 |= DW_MMC_IDMAC_DES0_FS;
   // Last Descriptor
-  Trb->DmaDesc[Entries - 1].Des0 = DW_MMC_IDMAC_DES0_OWN | DW_MMC_IDMAC_DES0_LD;
+  Trb->DmaDesc[Entries - 1].Des0 &= ~(DW_MMC_IDMAC_DES0_CH | DW_MMC_IDMAC_DES0_DIC);
+  Trb->DmaDesc[Entries - 1].Des0 |= DW_MMC_IDMAC_DES0_OWN | DW_MMC_IDMAC_DES0_LD;
   Trb->DmaDesc[Entries - 1].Des1 = DW_MMC_IDMAC_DES1_BS1 (Remaining + DWMMC_DMA_BUF_SIZE);
   // Set the next field of the Last Descriptor
   Trb->DmaDesc[Entries - 1].Des3 = 0;
@@ -1090,6 +1199,63 @@ BuildDmaDescTable (
   Idsts = ~0;
   Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_IDSTS, FALSE, sizeof (Idsts), &Idsts);
   return Status;
+}
+
+EFI_STATUS
+ReadFifo (
+  IN DW_MMC_HC_TRB          *Trb
+  )
+{
+  EFI_STATUS                Status;
+  EFI_PCI_IO_PROTOCOL       *PciIo;
+  UINT32                    Data;
+  UINT32                    Received;
+  UINT32                    Count;
+  UINT32                    Intsts;
+  UINT32                    Sts;
+  UINT32                    FifoCount;
+
+  PciIo   = Trb->Private->PciIo;
+  Received = 0;
+  Count = (Trb->DataLen + 3) / 4;
+  while (1) {
+    Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_RINTSTS, TRUE, sizeof (Intsts), &Intsts);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "ReadFifo: failed to read RINTSTS, Status:%r\n", Status));
+      return Status;
+    }
+    if (Intsts & DW_MMC_INT_DTO) {
+      Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_STATUS, TRUE, sizeof (Sts), &Sts);
+      if (EFI_ERROR (Status)) {
+        DEBUG ((DEBUG_ERROR, "ReadFifo: failed to read STATUS, Status:%r\n", Status));
+        return Status;
+      }
+      // Convert to bytes
+      FifoCount = GET_STS_FIFO_COUNT (Sts) << 2;
+      Count = (MIN (FifoCount, Trb->DataLen) + 3) / 4;
+      Received = 0;
+      // Read FIFO
+      while (Count && (Received < Count)) {
+        Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_FIFO_START, TRUE, sizeof (Data), &Data);
+        if (EFI_ERROR (Status)) {
+          DEBUG ((DEBUG_ERROR, "ReadFifo: failed to read FIFO, Status:%r\n", Status));
+          return Status;
+        }
+        *(UINT32 *)((UINTN)Trb->Data + ((Count - Received - 1) << 2)) = SwapBytes32 (Data);
+        Received++;
+      }
+    }
+    if (Intsts & DW_MMC_INT_CMD_DONE) {
+      break;
+    }
+  }
+  Intsts = ~0;
+  Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_RINTSTS, FALSE, sizeof (Intsts), &Intsts);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "ReadFifo: failed to write RINTSTS, Status:%r\n", Status));
+    return Status;
+  }
+  return EFI_SUCCESS;
 }
 
 /**
@@ -1150,10 +1316,6 @@ DwMmcCreateTrb (
     goto Error;
   }
 
-  if (Trb->DataLen < Trb->BlockSize) {
-    Trb->BlockSize = (UINT16)Trb->DataLen;
-  }
-
   if (((Private->Slot[Trb->Slot].CardType == EmmcCardType) &&
        (Packet->SdMmcCmdBlk->CommandIndex == EMMC_SEND_TUNING_BLOCK)) ||
       ((Private->Slot[Trb->Slot].CardType == SdCardType) &&
@@ -1167,8 +1329,10 @@ DwMmcCreateTrb (
     }
 
     PciIo = Private->PciIo;
-    if (Trb->DataLen != 0) {
+    if (((Private->Slot[Trb->Slot].CardType == EmmcCardType) && (Trb->DataLen != 0)) ||
+        ((Private->Slot[Trb->Slot].CardType == SdCardType) && (Trb->DataLen >= DWMMC_FIFO_THRESHOLD))) {
       MapLength = Trb->DataLen;
+      Trb->UseDma = TRUE;
       Status = PciIo->Map (
                         PciIo,
                         Flag,
@@ -1181,16 +1345,21 @@ DwMmcCreateTrb (
         Status = EFI_BAD_BUFFER_SIZE;
         goto Error;
       }
-    }
 
-    if (Trb->DataLen) {
       Status = BuildDmaDescTable (Trb);
       if (EFI_ERROR (Status)) {
         PciIo->Unmap (PciIo, Trb->DataMap);
         goto Error;
       }
-    }
-  }
+      Status = DwMmcHcStartDma (Private, Trb);
+      if (EFI_ERROR (Status)) {
+        PciIo->Unmap (PciIo, Trb->DataMap);
+        goto Error;
+      }
+    } else {
+      Trb->UseDma = FALSE;
+    } // Dma
+  } // TuningBlock
 
   if (Event != NULL) {
     OldTpl = gBS->RaiseTPL (TPL_NOTIFY);
@@ -1481,6 +1650,8 @@ DwSdExecTrb (
   UINT32                              ErrMask;
   UINT32                              Timeout;
   UINT32                              Idsts;
+  UINT32                              BytCnt;
+  UINT32                              BlkSize;
 
   Packet = Trb->Packet;
   PciIo  = Trb->Private->PciIo;
@@ -1542,6 +1713,20 @@ DwSdExecTrb (
   }
   Cmd |= BIT_CMD_USE_HOLD_REG | BIT_CMD_START;
 
+  if (Trb->UseDma == FALSE) {
+    BytCnt = Packet->InTransferLength;
+    Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_BYTCNT, FALSE, sizeof (BytCnt), &BytCnt);
+    if (EFI_ERROR (Status)) {
+      return Status;
+    }
+    BlkSize = Packet->InTransferLength;
+    Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_BLKSIZ, FALSE, sizeof (BlkSize), &BlkSize);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "DwMmcHcReset: set block size fails: %r\n", Status));
+      return Status;
+    }
+  }
+
   Argument = Packet->SdMmcCmdBlk->CommandArgument;
   Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_CMDARG, FALSE, sizeof (Argument), &Argument);
   if (EFI_ERROR (Status)) {
@@ -1560,39 +1745,57 @@ DwSdExecTrb (
   }
   ErrMask = DW_MMC_INT_EBE | DW_MMC_INT_HLE | DW_MMC_INT_RTO |
             DW_MMC_INT_RCRC | DW_MMC_INT_RE;
-  ErrMask |= DW_MMC_INT_DCRC | DW_MMC_INT_DRT | DW_MMC_INT_SBE;
-  Timeout = 10000;
-  do {
-    Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_RINTSTS, TRUE, sizeof (IntStatus), &IntStatus);
+  ErrMask |= DW_MMC_INT_DRT | DW_MMC_INT_SBE;
+  if (Packet->InTransferLength || Packet->OutTransferLength) {
+    ErrMask |= DW_MMC_INT_DCRC;
+  }
+  if (Trb->UseDma == FALSE) {
+    Status = ReadFifo (Trb);
     if (EFI_ERROR (Status)) {
       return Status;
     }
-    if (IntStatus & ErrMask) {
-      return EFI_DEVICE_ERROR;
-    }
-    if (IntStatus & DW_MMC_INT_DTO) {  // Transfer Done
-      break;
-    }
-    if (--Timeout == 0) {
-      break;
-    }
-    MicroSecondDelay (10);
-  } while (!(IntStatus & DW_MMC_INT_CMD_DONE));
-  if (Packet->InTransferLength) {
+  } else {
+    Timeout = 10000;
     do {
-      Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_IDSTS, TRUE, sizeof (Idsts), &Idsts);
+      Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_RINTSTS, TRUE, sizeof (IntStatus), &IntStatus);
       if (EFI_ERROR (Status)) {
         return Status;
       }
-    } while ((Idsts & BIT1) == 0);
-  } else if (Packet->OutTransferLength) {
-    do {
-      Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_IDSTS, TRUE, sizeof (Idsts), &Idsts);
+      if (IntStatus & ErrMask) {
+        return EFI_DEVICE_ERROR;
+      }
+      if (IntStatus & DW_MMC_INT_DTO) {  // Transfer Done
+        break;
+      }
+      if (--Timeout == 0) {
+        break;
+      }
+      MicroSecondDelay (10);
+    } while (!(IntStatus & DW_MMC_INT_CMD_DONE));
+    if (Packet->InTransferLength) {
+      do {
+        Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_IDSTS, TRUE, sizeof (Idsts), &Idsts);
+        if (EFI_ERROR (Status)) {
+          return Status;
+        }
+      } while ((Idsts & DW_MMC_IDSTS_RI) == 0);
+      Status = DwMmcHcStopDma (Private, Trb);
       if (EFI_ERROR (Status)) {
         return Status;
       }
-    } while ((Idsts & BIT0) == 0);
-  }
+    } else if (Packet->OutTransferLength) {
+      do {
+        Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_IDSTS, TRUE, sizeof (Idsts), &Idsts);
+        if (EFI_ERROR (Status)) {
+          return Status;
+        }
+      } while ((Idsts & DW_MMC_IDSTS_TI) == 0);
+      Status = DwMmcHcStopDma (Private, Trb);
+      if (EFI_ERROR (Status)) {
+        return Status;
+      }
+    } // Packet->InTransferLength
+  } // UseDma
   switch (Packet->SdMmcCmdBlk->ResponseType) {
     case SdMmcResponseTypeR1:
     case SdMmcResponseTypeR1b:
@@ -1693,6 +1896,9 @@ DwMmcCheckTrbResult (
   UINT32                              Idsts;
 
   Packet  = Trb->Packet;
+  if (Trb->UseDma == FALSE) {
+    return EFI_SUCCESS;
+  }
   if (Packet->InTransferLength) {
     do {
       Status = DwMmcHcRwMmio (Private->PciIo, Trb->Slot, DW_MMC_IDSTS, TRUE, sizeof (Idsts), &Idsts);

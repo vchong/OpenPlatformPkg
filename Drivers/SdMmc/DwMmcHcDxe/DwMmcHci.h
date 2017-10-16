@@ -52,9 +52,11 @@
 #define DW_MMC_RINTSTS                0x044
 #define DW_MMC_STATUS                 0x048
 #define DW_MMC_FIFOTH                 0x04c
+#define DW_MMC_GPIO                   0x058
 #define DW_MMC_DEBNCE                 0x064
 #define DW_MMC_USRID                  0x068
 #define DW_MMC_VERID                  0x06c
+#define DW_MMC_HCON                   0x070
 #define DW_MMC_UHSREG                 0x074
 #define DW_MMC_BMOD                   0x080
 #define DW_MMC_DBADDR                 0x088
@@ -62,7 +64,10 @@
 #define DW_MMC_IDINTEN                0x090
 #define DW_MMC_DSCADDR                0x094
 #define DW_MMC_BUFADDR                0x098
-#define DW_MMC_CARDTHRCTL             0X100
+#define DW_MMC_CARDTHRCTL             0x100
+#define DW_MMC_UHSREG_EXT             0x108
+#define DW_MMC_ENABLE_SHIFT           0x110
+#define DW_MMC_FIFO_START             0x200
 
 #define GET_IDSTS_DMAC_FSM(x)                   (((x) >> 13) & 0xf)
 #define IDSTS_FSM_DMA_IDLE                      0
@@ -120,11 +125,11 @@
 #define DW_MMC_INT_RTO                          (1 << 8)        /* Response timeout */
 #define DW_MMC_INT_DCRC                         (1 << 7)        /* Data CRC err */
 #define DW_MMC_INT_RCRC                         (1 << 6)        /* Response CRC err */
-#define DW_MMC_INT_RXDR                         (1 << 5)
-#define DW_MMC_INT_TXDR                         (1 << 4)
+#define DW_MMC_INT_RXDR                         (1 << 5)        /* Receive FIFO data request */
+#define DW_MMC_INT_TXDR                         (1 << 4)        /* Transmit FIFO data request */
 #define DW_MMC_INT_DTO                          (1 << 3)        /* Data trans over */
-#define DW_MMC_INT_CMD_DONE                     (1 << 2)
-#define DW_MMC_INT_RE                           (1 << 1)
+#define DW_MMC_INT_CMD_DONE                     (1 << 2)        /* Command done */
+#define DW_MMC_INT_RE                           (1 << 1)        /* Response error */
 
 #define DW_MMC_IDMAC_DES0_DIC                   (1 << 1)
 #define DW_MMC_IDMAC_DES0_LD                    (1 << 2)
@@ -139,8 +144,6 @@
 #define DW_MMC_IDMAC_FB                         (1 << 1)
 #define DW_MMC_IDMAC_ENABLE                     (1 << 7)
 
-#define EMMC_FIX_RCA                            6
-
 #define DW_MMC_CTRL_RESET                       (1 << 0)
 #define DW_MMC_CTRL_FIFO_RESET                  (1 << 1)
 #define DW_MMC_CTRL_DMA_RESET                   (1 << 2)
@@ -150,17 +153,37 @@
 #define DW_MMC_CTRL_RESET_ALL                   (DW_MMC_CTRL_RESET | DW_MMC_CTRL_FIFO_RESET | DW_MMC_CTRL_DMA_RESET)
 
 #define DW_MMC_STS_DATA_BUSY                    (1 << 9)
+#define DW_MMC_STS_FIFO_COUNT(x)                (((x) & 0x1fff) << 17)   /* Number of filled locations in FIFO */
+#define GET_STS_FIFO_COUNT(x)                   (((x) >> 17) & 0x1fff)
 
-#define DW_MMC_FIFO_TWMARK(x)                   (x & 0xfff)
-#define DW_MMC_FIFO_RWMARK(x)                   ((x & 0x1ff) << 16)
-#define DW_MMC_DMA_BURST_SIZE(x)                ((x & 0x7) << 28)
+#define DW_MMC_BMOD_SWR                         (1 << 0)         /* Software Reset */
+#define DW_MMC_BMOD_FB                          (1 << 1)         /* Fix Burst */
+#define DW_MMC_BMOD_DE                          (1 << 7)         /* IDMAC Enable */
 
-#define DW_MMC_CARD_RD_THR(x)                   ((x & 0xfff) << 16)
+#define DW_MMC_IDSTS_TI                         (1 << 0)         /* Transmit Interrupt */
+#define DW_MMC_IDSTS_RI                         (1 << 1)         /* Receive Interrupt */
+
+#define DW_MMC_FIFO_TWMARK(x)                   ((x) & 0xfff)
+#define DW_MMC_FIFO_RWMARK(x)                   (((x) & 0x1ff) << 16)
+#define DW_MMC_DMA_BURST_SIZE(x)                (((x) & 0x7) << 28)
+
+#define DW_MMC_CARD_RD_THR(x)                   (((x) & 0xfff) << 16)
 #define DW_MMC_CARD_RD_THR_EN                   (1 << 0)
 
 #define UHS_DDR_MODE                            (1 << 16)
 
+#define GENCLK_DIV                              7
+
+#define DW_MMC_GPIO_CLK_DIV(x)                  (((x) & 0xf) << 8)
+#define DW_MMC_GPIO_USE_SAMPLE_DLY(x)           (((x) & 1) << 13)
+#define DW_MMC_GPIO_CLK_ENABLE                  BIT16
+
+#define UHSEXT_SAMPLE_PHASE(x)                  (((x) & 0x1f) << 16)
+#define UHSEXT_SAMPLE_DRVPHASE(x)               (((x) & 0x1f) << 21)
+#define UHSEXT_SAMPLE_DLY(x)                    (((x) & 0x1f) << 26)
+
 #define DWMMC_DMA_BUF_SIZE                      (512 * 8)
+#define DWMMC_FIFO_THRESHOLD                    16
 
 //
 // The transfer modes supported by SD Host Controller

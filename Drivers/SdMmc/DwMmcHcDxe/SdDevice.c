@@ -817,32 +817,13 @@ SdCardSetBusMode (
   EFI_STATUS                   Status;
   DW_MMC_HC_SLOT_CAP           *Capability;
   UINT32                       ClockFreq;
-  UINT8                        BusWidth;
   UINT8                        AccessMode;
   UINT8                        SwitchResp[64];
   DW_MMC_HC_PRIVATE_DATA       *Private;
-  BOOLEAN                      IsDdr;
 
   Private = DW_MMC_HC_PRIVATE_FROM_THIS (PassThru);
 
   Capability = &Private->Capability[Slot];
-
-  if ((Capability->BusWidth == 1) || (Capability->BusWidth == 4)) {
-    BusWidth = Capability->BusWidth;
-  } else {
-    return EFI_INVALID_PARAMETER;
-  }
-
-  if (Capability->Ddr50) {
-    IsDdr = TRUE;
-  } else {
-    IsDdr = FALSE;
-  }
-
-  Status = SdCardSwitchBusWidth (PciIo, PassThru, Slot, Rca, IsDdr, BusWidth);
-  if (EFI_ERROR (Status)) {
-    return Status;
-  }
 
   //
   // Get the supported bus speed from SWITCH cmd return data group #1.
@@ -878,11 +859,11 @@ SdCardSetBusMode (
   }
 
   if ((SwitchResp[16] & 0xF) != AccessMode) {
-    DEBUG ((DEBUG_ERROR, "SdCardSetBusMode: Switch to AccessMode %d ClockFreq %d BusWidth %d fails! The Switch response is 0x%1x\n", AccessMode, ClockFreq, BusWidth, SwitchResp[16] & 0xF));
+    DEBUG ((DEBUG_ERROR, "SdCardSetBusMode: Switch to AccessMode %d ClockFreq %d fails! The Switch response is 0x%1x\n", AccessMode, ClockFreq, SwitchResp[16] & 0xF));
     return EFI_DEVICE_ERROR;
   }
 
-  DEBUG ((DEBUG_INFO, "SdCardSetBusMode: Switch to AccessMode %d ClockFreq %d BusWidth %d\n", AccessMode, ClockFreq, BusWidth));
+  DEBUG ((DEBUG_INFO, "SdCardSetBusMode: Switch to AccessMode %d ClockFreq %d \n", AccessMode, ClockFreq));
 
   Status = DwMmcHcClockSupply (PciIo, Slot, ClockFreq * 1000, *Capability);
   if (EFI_ERROR (Status)) {
@@ -918,6 +899,10 @@ SdCardIdentification (
   BOOLEAN                        Xpc;
   BOOLEAN                        S18r;
   UINT64                         MaxCurrent;
+  SD_SCR                         Scr;
+  SD_CSD                         Csd;
+  UINT32                         BusWidths;
+  BOOLEAN                        IsDdr;
 
   PciIo    = Private->PciIo;
   PassThru = &Private->PassThru;
@@ -941,7 +926,7 @@ SdCardIdentification (
   // 3. Send SDIO Cmd5 to the device to the SDIO device OCR register.
   //
   Status = SdioSendOpCond (PassThru, Slot, 0, FALSE);
-  if (!EFI_ERROR (Status)) {
+  if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_INFO, "SdCardIdentification: Found SDIO device, ignore it as we don't support\n"));
     return EFI_DEVICE_ERROR;
   }
@@ -1011,6 +996,36 @@ SdCardIdentification (
   Status = SdCardSelect (PassThru, Slot, Rca);
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "SdCardIdentification: Selecting card fails with %r\n", Status));
+    return Status;
+  }
+
+  Status = SdCardGetScr (PassThru, Slot, Rca, &Scr);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "SdCardIdentification: Executing SdCardGetScr fails with %r\n", Status));
+    return Status;
+  }
+
+  if ((Private->Capability[Slot].BusWidth == 1) || (Private->Capability[Slot].BusWidth == 4)) {
+    BusWidths = Private->Capability[Slot].BusWidth & Scr.SdBusWidths;
+  } else {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  if (Private->Capability[Slot].Ddr50) {
+    IsDdr = TRUE;
+  } else {
+    IsDdr = FALSE;
+  }
+
+  Status = SdCardSwitchBusWidth (PciIo, PassThru, Slot, Rca, IsDdr, BusWidths);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "SdCardIdentification: Executing SdCardSwitchBusWidth fails with %r\n", Status));
+    return Status;
+  }
+
+  Status = SdCardGetCsd (PassThru, Slot, Rca, &Csd);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "SdCardIdentification: Executing SdCardGetCsd fails with %r\n", Status));
     return Status;
   }
   //
