@@ -555,8 +555,8 @@ CheckInterrupts (
         UINTN Len = 0;
 
         ArmDataSynchronizationBarrier ();
-        if (MATCH_CMD_LITERAL ("download", RxBuf)) {
-          mNumDataBytes = AsciiStrHexToUint64 (RxBuf + sizeof ("download"));
+        if (MATCH_CMD_LITERAL ("download:", RxBuf)) {
+          mNumDataBytes = AsciiStrHexToUint64 (RxBuf + sizeof ("download:"));
         } else {
           if (mNumDataBytes != 0) {
             mNumDataBytes -= Bytes;
