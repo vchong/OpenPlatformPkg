@@ -517,7 +517,7 @@ CheckInterrupts (
 			  UINTN len = 0;
 
 			  if (MATCH_CMD_LITERAL ("download:", rx_buf)) {
-				  mNumDataBytes = AsciiStrHexToUint64 (rx_buf + sizeof ("download:"));
+				  mNumDataBytes = AsciiStrHexToUint64 (rx_buf + sizeof ("download"));
 			  } else {
 				if (mNumDataBytes != 0)
 					mNumDataBytes -= bytes;
