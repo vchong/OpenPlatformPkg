@@ -516,7 +516,7 @@ CheckInterrupts (
 			  UINTN bytes = rx_desc_bytes - g_dma_desc->status.b.bytes;
 			  UINTN len = 0;
 
-			  if (MATCH_CMD_LITERAL ("download", rx_buf)) {
+			  if (MATCH_CMD_LITERAL ("download:", rx_buf)) {
 				  mNumDataBytes = AsciiStrHexToUint64 (rx_buf + sizeof ("download"));
 			  } else {
 				if (mNumDataBytes != 0)
