@@ -120,9 +120,11 @@ HiKeyUsbPhyInit (
   //If Mode = 1, USB in Device Mode
   //If Mode = 0, USB in Host Mode
   if (Mode == USB_DEVICE_MODE) {
+    DEBUG ((EFI_D_ERROR, "Set USB PHY in device mode.\n"));
     if (HiKeyGetUsbMode () == USB_DEVICE_MODE) {
-      DEBUG ((EFI_D_ERROR, "usb work as device mode.\n"));
+      DEBUG ((EFI_D_ERROR, "USB PHY works in device mode.\n"));
     } else {
+      DEBUG ((EFI_D_ERROR, "Fail to set USB PHY in device mode.\n"));
       return EFI_INVALID_PARAMETER;
     }
 
@@ -131,9 +133,11 @@ HiKeyUsbPhyInit (
      MmioWrite32 (PERI_CTRL_BASE + SC_PERIPH_CTRL5, Value);
      MicroSecondDelay (20000);
   } else {
+    DEBUG ((EFI_D_ERROR, "Set USB PHY in host mode.\n"));
     if (HiKeyGetUsbMode () == USB_HOST_MODE) {
-      DEBUG ((EFI_D_ERROR, "usb work as host mode.\n"));
+      DEBUG ((EFI_D_ERROR, "USB PHY works in host mode.\n"));
     } else {
+      DEBUG ((EFI_D_ERROR, "Fail to set USB PHY in host mode.\n"));
       return EFI_INVALID_PARAMETER;
     }
 
