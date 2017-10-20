@@ -50,7 +50,7 @@
 #define SERIAL_NUMBER_LENGTH      16
 #define BOOT_DEVICE_LENGTH        16
 
-#define HIKEY_ERASE_SIZE          512
+#define HIKEY_ERASE_SIZE          4096
 
 typedef struct _FASTBOOT_PARTITION_LIST {
   LIST_ENTRY  Link;
