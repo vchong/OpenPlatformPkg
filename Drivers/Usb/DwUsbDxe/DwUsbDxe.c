@@ -772,6 +772,7 @@ DwUsbEntryPoint (
 
   Status = gBS->LocateProtocol (&gDwUsbProtocolGuid, NULL, (VOID **) &DwUsb);
   if (EFI_ERROR (Status)) {
+    DEBUG ((EFI_D_ERROR, "DwUsbEntryPoint: fail to locate DwUsbProtocolGuid, Status:%r\n", Status));
     return Status;
   }
 
@@ -779,6 +780,7 @@ DwUsbEntryPoint (
   UsbMode = USB_DEVICE_MODE;
   Status = DwUsb->PhyInit(UsbMode);
   if (EFI_ERROR (Status)) {
+    DEBUG ((EFI_D_ERROR, "DwUsbEntryPoint: fail to init USB Phy, Status:%r\n", Status));
     return Status;
   }
 
