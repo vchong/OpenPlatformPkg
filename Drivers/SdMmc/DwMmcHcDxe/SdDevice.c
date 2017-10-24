@@ -914,6 +914,7 @@ SdCardIdentification (
     DEBUG ((DEBUG_INFO, "SdCardIdentification: Executing Cmd0 fails with %r\n", Status));
     return Status;
   }
+  MicroSecondDelay (10000);
   //
   // 2. Send Cmd8 to the device
   //
@@ -926,10 +927,11 @@ SdCardIdentification (
   // 3. Send SDIO Cmd5 to the device to the SDIO device OCR register.
   //
   Status = SdioSendOpCond (PassThru, Slot, 0, FALSE);
-  if (EFI_ERROR (Status)) {
+  if (!EFI_ERROR (Status)) {
     DEBUG ((DEBUG_INFO, "SdCardIdentification: Found SDIO device, ignore it as we don't support\n"));
     return EFI_DEVICE_ERROR;
   }
+  MicroSecondDelay (10000);
   //
   // 4. Send Acmd41 with voltage window 0 to the device
   //
