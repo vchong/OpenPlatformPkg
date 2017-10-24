@@ -185,6 +185,8 @@
 #define DWMMC_DMA_BUF_SIZE                      (512 * 8)
 #define DWMMC_FIFO_THRESHOLD                    16
 
+#define DWMMC_INIT_CLOCK_FREQ                   400              // KHz
+
 //
 // The transfer modes supported by SD Host Controller
 // Simplified Spec 3.0 Table 1-2

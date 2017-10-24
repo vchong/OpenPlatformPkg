@@ -137,7 +137,8 @@ typedef struct {
   EFI_PHYSICAL_ADDRESS                DmaDescPhy;
   UINT32                              DmaDescPages;
   VOID                                *DmaMap;
-  BOOLEAN                             UseDma;
+
+  BOOLEAN                             UseFifo;
 
   DW_MMC_HC_PRIVATE_DATA              *Private;
 } DW_MMC_HC_TRB;
