@@ -1246,7 +1246,12 @@ ReadFifo (
       }
     }
     if (Intsts & DW_MMC_INT_CMD_DONE) {
-      break;
+      if ((Intsts == DW_MMC_INT_CMD_DONE) && Count) {
+        // CMD_DONE interrupt comes earlier before other interrupts. Just wait for a while.
+        continue;
+      } else {
+        break;
+      }
     }
   }
   Intsts = ~0;
@@ -1740,9 +1745,7 @@ DwSdExecTrb (
   }
   ArmDataSynchronizationBarrier ();
   ArmInstructionSynchronizationBarrier ();
-  if (Private->Slot[Trb->Slot].Initialized == FALSE) {
-    MicroSecondDelay (50000);
-  }
+
   ErrMask = DW_MMC_INT_EBE | DW_MMC_INT_HLE | DW_MMC_INT_RTO |
             DW_MMC_INT_RCRC | DW_MMC_INT_RE;
   ErrMask |= DW_MMC_INT_DRT | DW_MMC_INT_SBE;
