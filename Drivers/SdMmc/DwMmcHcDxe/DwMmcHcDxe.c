@@ -374,6 +374,8 @@ DwMmcHcReset (
     return Status;
   }
 
+  Status = DwMmcHcSetBusWidth (PciIo, Slot, FALSE, 1);
+
   return Status;
 }
 
