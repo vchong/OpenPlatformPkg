@@ -655,20 +655,20 @@ DwMmcHcClockSupply (
     return EFI_INVALID_PARAMETER;
   }
 
-  if (ClockFreq > (BaseClkFreq * 1000)) {
-    ClockFreq = BaseClkFreq * 1000;
+  if (ClockFreq > BaseClkFreq) {
+    ClockFreq = BaseClkFreq;
   }
 
   //
   // Calculate the divisor of base frequency.
   //
   Divisor     = 0;
-  SettingFreq = BaseClkFreq * 1000;
+  SettingFreq = BaseClkFreq;
   while (ClockFreq < SettingFreq) {
     Divisor++;
 
-    SettingFreq = (BaseClkFreq * 1000) / (2 * Divisor);
-    Remainder   = (BaseClkFreq * 1000) % (2 * Divisor);
+    SettingFreq = BaseClkFreq / (2 * Divisor);
+    Remainder   = BaseClkFreq % (2 * Divisor);
     if ((ClockFreq == SettingFreq) && (Remainder == 0)) {
       break;
     }
@@ -677,7 +677,7 @@ DwMmcHcClockSupply (
     }
   }
 
-  DEBUG ((DEBUG_INFO, "BaseClkFreq %dMHz Divisor %d ClockFreq %dKhz\n", BaseClkFreq, Divisor, ClockFreq));
+  DEBUG ((DEBUG_INFO, "BaseClkFreq %dKHz Divisor %d ClockFreq %dKhz\n", BaseClkFreq, Divisor, ClockFreq));
 
   // Wait until MMC is idle
   do {
@@ -825,7 +825,7 @@ DwMmcHcInitClockFreq (
   //
   // Supply 400KHz clock frequency at initialization phase.
   //
-  InitFreq = 400;
+  InitFreq = DWMMC_INIT_CLOCK_FREQ;
   Status = DwMmcHcClockSupply (PciIo, Slot, InitFreq, Capability);
   if (EFI_ERROR (Status)) {
     return Status;

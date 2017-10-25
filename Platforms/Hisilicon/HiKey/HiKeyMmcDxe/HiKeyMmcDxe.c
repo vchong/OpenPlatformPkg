@@ -38,14 +38,14 @@ DwMmcCapability[2] = {
     .BusWidth    = 8,
     .SlotType    = EmbeddedSlot,
     .CardType    = EmmcCardType,
-    .BaseClkFreq = 100
+    .BaseClkFreq = 100000
   }, {
     .HighSpeed   = 1,
     .BusWidth    = 4,
     .SlotType    = RemovableSlot,
     .CardType    = SdCardType,
-    .BaseClkFreq = 100,
-    .Voltage30   = 1
+    .Voltage30   = 1,
+    .BaseClkFreq = 100000
   }
 };
 

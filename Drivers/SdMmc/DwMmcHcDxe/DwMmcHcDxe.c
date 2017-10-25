@@ -671,7 +671,7 @@ DwMmcHcDriverBindingStart (
     Support64BitDma &= Private->Capability[Slot].SysBus64;
 
     if (Private->Capability[Slot].BaseClkFreq == 0) {
-      Private->Capability[Slot].BaseClkFreq = 0xff;
+      continue;
     }
 
     DumpCapabilityReg (Slot, &Private->Capability[Slot]);

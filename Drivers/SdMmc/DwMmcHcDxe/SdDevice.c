@@ -1032,12 +1032,6 @@ SdCardIdentification (
     return Status;
   }
 
-  Status = DwMmcHcClockSupply (PciIo, Slot, DWMMC_INIT_CLOCK_FREQ, Private->Capability[Slot]);
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "SdCardIdentification: Failing to set clock frequency %d, Status:%r\n", DWMMC_INIT_CLOCK_FREQ, Status));
-    return Status;
-  }
-
   Status = SdCardGetScr (PassThru, Slot, Rca, &Scr);
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "SdCardIdentification: Executing SdCardGetScr fails with %r\n", Status));

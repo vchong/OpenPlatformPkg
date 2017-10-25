@@ -39,13 +39,13 @@ typedef struct {
   UINT32        Sdr104:1;          // bit 5
   UINT32        Ddr50:1;           // bit 6
   UINT32        SysBus64:1;        // bit 7
-  UINT32        BaseClkFreq:8;     // bit 15:8
-  UINT32        BusWidth:4;        // bit 20:16
-  UINT32        SlotType:2;        // bit 22:21
-  UINT32        CardType:3;        // bit 25:23
-  UINT32        Voltage18:1;       // bit 26
-  UINT32        Voltage30:1;       // bit 27
-  UINT32        Voltage33:1;       // bit 28
+  UINT32        BusWidth:4;        // bit 11:8
+  UINT32        SlotType:2;        // bit 13:12
+  UINT32        CardType:3;        // bit 16:14
+  UINT32        Voltage18:1;       // bit 17
+  UINT32        Voltage30:1;       // bit 18
+  UINT32        Voltage33:1;       // bit 19
+  UINT32        BaseClkFreq;
   EFI_HANDLE    Controller;
 } DW_MMC_HC_SLOT_CAP;
 

@@ -37,8 +37,8 @@ DwMmcCapability[1] = {
     .BusWidth    = 4,
     .SlotType    = RemovableSlot,
     .CardType    = SdCardType,
-    .BaseClkFreq = 200,
-    .Voltage30   = 1
+    .Voltage30   = 1,
+    .BaseClkFreq = 3200
   }
 };
 
