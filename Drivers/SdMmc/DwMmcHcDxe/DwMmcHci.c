@@ -655,20 +655,20 @@ DwMmcHcClockSupply (
     return EFI_INVALID_PARAMETER;
   }
 
-  if (ClockFreq > (BaseClkFreq * 1000)) {
-    ClockFreq = BaseClkFreq * 1000;
+  if (ClockFreq > BaseClkFreq) {
+    ClockFreq = BaseClkFreq;
   }
 
   //
   // Calculate the divisor of base frequency.
   //
   Divisor     = 0;
-  SettingFreq = BaseClkFreq * 1000;
+  SettingFreq = BaseClkFreq;
   while (ClockFreq < SettingFreq) {
     Divisor++;
 
-    SettingFreq = (BaseClkFreq * 1000) / (2 * Divisor);
-    Remainder   = (BaseClkFreq * 1000) % (2 * Divisor);
+    SettingFreq = BaseClkFreq / (2 * Divisor);
+    Remainder   = BaseClkFreq % (2 * Divisor);
     if ((ClockFreq == SettingFreq) && (Remainder == 0)) {
       break;
     }
@@ -677,7 +677,7 @@ DwMmcHcClockSupply (
     }
   }
 
-  DEBUG ((DEBUG_INFO, "BaseClkFreq %dMHz Divisor %d ClockFreq %dKhz\n", BaseClkFreq, Divisor, ClockFreq));
+  DEBUG ((DEBUG_INFO, "BaseClkFreq %dKHz Divisor %d ClockFreq %dKhz\n", BaseClkFreq, Divisor, ClockFreq));
 
   // Wait until MMC is idle
   do {
@@ -825,7 +825,7 @@ DwMmcHcInitClockFreq (
   //
   // Supply 400KHz clock frequency at initialization phase.
   //
-  InitFreq = 400;
+  InitFreq = DWMMC_INIT_CLOCK_FREQ;
   Status = DwMmcHcClockSupply (PciIo, Slot, InitFreq, Capability);
   if (EFI_ERROR (Status)) {
     return Status;
@@ -1246,7 +1246,12 @@ ReadFifo (
       }
     }
     if (Intsts & DW_MMC_INT_CMD_DONE) {
-      break;
+      if ((Intsts == DW_MMC_INT_CMD_DONE) && Count) {
+        // CMD_DONE interrupt comes earlier before other interrupts. Just wait for a while.
+        continue;
+      } else {
+        break;
+      }
     }
   }
   Intsts = ~0;
@@ -1329,36 +1334,39 @@ DwMmcCreateTrb (
     }
 
     PciIo = Private->PciIo;
-    if (((Private->Slot[Trb->Slot].CardType == EmmcCardType) && (Trb->DataLen != 0)) ||
-        ((Private->Slot[Trb->Slot].CardType == SdCardType) && (Trb->DataLen >= DWMMC_FIFO_THRESHOLD))) {
-      MapLength = Trb->DataLen;
-      Trb->UseDma = TRUE;
-      Status = PciIo->Map (
-                        PciIo,
-                        Flag,
-                        Trb->Data,
-                        &MapLength,
-                        &Trb->DataPhy,
-                        &Trb->DataMap
-                        );
-      if (EFI_ERROR (Status) || (Trb->DataLen != MapLength)) {
-        Status = EFI_BAD_BUFFER_SIZE;
-        goto Error;
-      }
-
-      Status = BuildDmaDescTable (Trb);
-      if (EFI_ERROR (Status)) {
-        PciIo->Unmap (PciIo, Trb->DataMap);
-        goto Error;
-      }
-      Status = DwMmcHcStartDma (Private, Trb);
-      if (EFI_ERROR (Status)) {
-        PciIo->Unmap (PciIo, Trb->DataMap);
-        goto Error;
-      }
+    if ((Private->Slot[Trb->Slot].CardType == SdCardType) &&
+        (Trb->DataLen != 0) &&
+        (Trb->DataLen <= DWMMC_FIFO_THRESHOLD)) {
+      Trb->UseFifo = TRUE;
     } else {
-      Trb->UseDma = FALSE;
-    } // Dma
+      Trb->UseFifo = FALSE;
+      if (Trb->DataLen) {
+        MapLength = Trb->DataLen;
+        Status = PciIo->Map (
+                          PciIo,
+                          Flag,
+                          Trb->Data,
+                          &MapLength,
+                          &Trb->DataPhy,
+                          &Trb->DataMap
+                          );
+        if (EFI_ERROR (Status) || (Trb->DataLen != MapLength)) {
+          Status = EFI_BAD_BUFFER_SIZE;
+          goto Error;
+        }
+
+        Status = BuildDmaDescTable (Trb);
+        if (EFI_ERROR (Status)) {
+          PciIo->Unmap (PciIo, Trb->DataMap);
+          goto Error;
+        }
+        Status = DwMmcHcStartDma (Private, Trb);
+        if (EFI_ERROR (Status)) {
+          PciIo->Unmap (PciIo, Trb->DataMap);
+          goto Error;
+        }
+      }
+    }
   } // TuningBlock
 
   if (Event != NULL) {
@@ -1713,7 +1721,7 @@ DwSdExecTrb (
   }
   Cmd |= BIT_CMD_USE_HOLD_REG | BIT_CMD_START;
 
-  if (Trb->UseDma == FALSE) {
+  if (Trb->UseFifo == TRUE) {
     BytCnt = Packet->InTransferLength;
     Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_BYTCNT, FALSE, sizeof (BytCnt), &BytCnt);
     if (EFI_ERROR (Status)) {
@@ -1740,16 +1748,14 @@ DwSdExecTrb (
   }
   ArmDataSynchronizationBarrier ();
   ArmInstructionSynchronizationBarrier ();
-  if (Private->Slot[Trb->Slot].Initialized == FALSE) {
-    MicroSecondDelay (50000);
-  }
+
   ErrMask = DW_MMC_INT_EBE | DW_MMC_INT_HLE | DW_MMC_INT_RTO |
             DW_MMC_INT_RCRC | DW_MMC_INT_RE;
   ErrMask |= DW_MMC_INT_DRT | DW_MMC_INT_SBE;
   if (Packet->InTransferLength || Packet->OutTransferLength) {
     ErrMask |= DW_MMC_INT_DCRC;
   }
-  if (Trb->UseDma == FALSE) {
+  if (Trb->UseFifo == TRUE) {
     Status = ReadFifo (Trb);
     if (EFI_ERROR (Status)) {
       return Status;
@@ -1795,7 +1801,7 @@ DwSdExecTrb (
         return Status;
       }
     } // Packet->InTransferLength
-  } // UseDma
+  } // UseFifo
   switch (Packet->SdMmcCmdBlk->ResponseType) {
     case SdMmcResponseTypeR1:
     case SdMmcResponseTypeR1b:
@@ -1896,7 +1902,7 @@ DwMmcCheckTrbResult (
   UINT32                              Idsts;
 
   Packet  = Trb->Packet;
-  if (Trb->UseDma == FALSE) {
+  if (Trb->UseFifo == TRUE) {
     return EFI_SUCCESS;
   }
   if (Packet->InTransferLength) {

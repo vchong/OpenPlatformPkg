@@ -800,6 +800,7 @@ SdCardSwitchBusWidth (
   @param[in] Slot           The slot number of the SD card to send the command to.
   @param[in] Rca            The relative device address to be assigned.
   @param[in] S18A           The boolean to show if it's a UHS-I SD card.
+  @param[in] BusWidths      The bus width of the SD card.
 
   @retval EFI_SUCCESS       The operation is done correctly.
   @retval Others            The operation fails.
@@ -811,7 +812,8 @@ SdCardSetBusMode (
   IN EFI_SD_MMC_PASS_THRU_PROTOCOL      *PassThru,
   IN UINT8                              Slot,
   IN UINT16                             Rca,
-  IN BOOLEAN                            S18A
+  IN BOOLEAN                            S18A,
+  IN UINT32                             BusWidths
   )
 {
   EFI_STATUS                   Status;
@@ -820,10 +822,35 @@ SdCardSetBusMode (
   UINT8                        AccessMode;
   UINT8                        SwitchResp[64];
   DW_MMC_HC_PRIVATE_DATA       *Private;
+  BOOLEAN                      IsDdr;
 
   Private = DW_MMC_HC_PRIVATE_FROM_THIS (PassThru);
 
   Capability = &Private->Capability[Slot];
+
+  if ((Capability->BusWidth == 1) || (Capability->BusWidth == 4)) {
+    BusWidths &= Capability[Slot].BusWidth;
+  } else {
+    DEBUG ((DEBUG_ERROR, "SdCardSetBusMode: BusWidths (%d) in capability are wrong\n", Capability->BusWidth));
+    return EFI_INVALID_PARAMETER;
+  }
+
+  if (BusWidths == 0) {
+    DEBUG ((DEBUG_ERROR, "SdCardSetBusMode: Get wrong BusWidths:%d\n", BusWidths));
+    return EFI_INVALID_PARAMETER;
+  }
+
+  if (Private->Capability[Slot].Ddr50) {
+    IsDdr = TRUE;
+  } else {
+    IsDdr = FALSE;
+  }
+
+  Status = SdCardSwitchBusWidth (PciIo, PassThru, Slot, Rca, IsDdr, BusWidths);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "SdCardSetBusMode: Executing SdCardSwitchBusWidth fails with %r\n", Status));
+    return Status;
+  }
 
   //
   // Get the supported bus speed from SWITCH cmd return data group #1.
@@ -901,8 +928,6 @@ SdCardIdentification (
   UINT64                         MaxCurrent;
   SD_SCR                         Scr;
   SD_CSD                         Csd;
-  UINT32                         BusWidths;
-  BOOLEAN                        IsDdr;
 
   PciIo    = Private->PciIo;
   PassThru = &Private->PassThru;
@@ -914,6 +939,7 @@ SdCardIdentification (
     DEBUG ((DEBUG_INFO, "SdCardIdentification: Executing Cmd0 fails with %r\n", Status));
     return Status;
   }
+  MicroSecondDelay (10000);
   //
   // 2. Send Cmd8 to the device
   //
@@ -926,10 +952,11 @@ SdCardIdentification (
   // 3. Send SDIO Cmd5 to the device to the SDIO device OCR register.
   //
   Status = SdioSendOpCond (PassThru, Slot, 0, FALSE);
-  if (EFI_ERROR (Status)) {
+  if (!EFI_ERROR (Status)) {
     DEBUG ((DEBUG_INFO, "SdCardIdentification: Found SDIO device, ignore it as we don't support\n"));
     return EFI_DEVICE_ERROR;
   }
+  MicroSecondDelay (10000);
   //
   // 4. Send Acmd41 with voltage window 0 to the device
   //
@@ -999,43 +1026,32 @@ SdCardIdentification (
     return Status;
   }
 
+  Status = SdCardSwitchBusWidth (PciIo, PassThru, Slot, Rca, FALSE, 1);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "SdCardIdentification: Executing SdCardSwitchBusWidth fails with %r\n", Status));
+    return Status;
+  }
+
   Status = SdCardGetScr (PassThru, Slot, Rca, &Scr);
   if (EFI_ERROR (Status)) {
     DEBUG ((DEBUG_ERROR, "SdCardIdentification: Executing SdCardGetScr fails with %r\n", Status));
     return Status;
   }
 
-  if ((Private->Capability[Slot].BusWidth == 1) || (Private->Capability[Slot].BusWidth == 4)) {
-    BusWidths = Private->Capability[Slot].BusWidth & Scr.SdBusWidths;
-  } else {
-    return EFI_INVALID_PARAMETER;
-  }
-
-  if (Private->Capability[Slot].Ddr50) {
-    IsDdr = TRUE;
-  } else {
-    IsDdr = FALSE;
-  }
-
-  Status = SdCardSwitchBusWidth (PciIo, PassThru, Slot, Rca, IsDdr, BusWidths);
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "SdCardIdentification: Executing SdCardSwitchBusWidth fails with %r\n", Status));
-    return Status;
-  }
-
-  Status = SdCardGetCsd (PassThru, Slot, Rca, &Csd);
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "SdCardIdentification: Executing SdCardGetCsd fails with %r\n", Status));
-    return Status;
-  }
   //
   // Enter Data Tranfer Mode.
   //
   DEBUG ((DEBUG_INFO, "SdCardIdentification: Found a SD device at slot [%d]\n", Slot));
   Private->Slot[Slot].CardType = SdCardType;
 
-  Status = SdCardSetBusMode (PciIo, PassThru, Slot, Rca, S18r);
+  Status = SdCardSetBusMode (PciIo, PassThru, Slot, Rca, S18r, Scr.SdBusWidths);
   if (EFI_ERROR (Status)) {
+    return Status;
+  }
+
+  Status = SdCardGetCsd (PassThru, Slot, Rca, &Csd);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "SdCardIdentification: Executing SdCardGetCsd fails with %r\n", Status));
     return Status;
   }
   Private->Slot[Slot].Initialized = TRUE;
