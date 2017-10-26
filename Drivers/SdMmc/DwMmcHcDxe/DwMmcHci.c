@@ -1710,13 +1710,11 @@ DwSdExecTrb (
   case SdMmcResponseTypeR3:
     Cmd |= BIT_CMD_RESPONSE_EXPECT;
     break;
+  case SdMmcResponseTypeR1b:
   case SdMmcResponseTypeR4:
   case SdMmcResponseTypeR6:
-    Cmd |= BIT_CMD_RESPONSE_EXPECT | BIT_CMD_CHECK_RESPONSE_CRC;
-    break;
-  case SdMmcResponseTypeR1b:
   case SdMmcResponseTypeR7:
-    Cmd |= BIT_CMD_WAIT_PRVDATA_COMPLETE | BIT_CMD_RESPONSE_EXPECT | BIT_CMD_CHECK_RESPONSE_CRC;
+    Cmd |= BIT_CMD_RESPONSE_EXPECT | BIT_CMD_CHECK_RESPONSE_CRC;
     break;
   }
   Cmd |= BIT_CMD_USE_HOLD_REG | BIT_CMD_START;
