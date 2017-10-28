@@ -1020,15 +1020,15 @@ SdCardIdentification (
     return Status;
   }
 
-  Status = SdCardSelect (PassThru, Slot, Rca);
+  Status = SdCardGetCsd (PassThru, Slot, Rca, &Csd);
   if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "SdCardIdentification: Selecting card fails with %r\n", Status));
+    DEBUG ((DEBUG_ERROR, "SdCardIdentification: Executing SdCardGetCsd fails with %r\n", Status));
     return Status;
   }
 
-  Status = SdCardSwitchBusWidth (PciIo, PassThru, Slot, Rca, FALSE, 1);
+  Status = SdCardSelect (PassThru, Slot, Rca);
   if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "SdCardIdentification: Executing SdCardSwitchBusWidth fails with %r\n", Status));
+    DEBUG ((DEBUG_ERROR, "SdCardIdentification: Selecting card fails with %r\n", Status));
     return Status;
   }
 
@@ -1049,11 +1049,6 @@ SdCardIdentification (
     return Status;
   }
 
-  Status = SdCardGetCsd (PassThru, Slot, Rca, &Csd);
-  if (EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_ERROR, "SdCardIdentification: Executing SdCardGetCsd fails with %r\n", Status));
-    return Status;
-  }
   Private->Slot[Slot].Initialized = TRUE;
 
   return Status;

@@ -25,6 +25,11 @@
 #define PCTRL_CTRL3_USB_TXCO_EN                 (1 << 1)
 #define PCTRL_CTRL24_USB3PHY_3MUX1_SEL          (1 << 25)
 
+#define SCTRL_REG_BASE                          0xFFF0A000
+
+#define SCTRL_SCFPLLCTRL0                       (SCTRL_REG_BASE + 0x120)
+#define SCTRL_SCFPLLCTRL0_FPLL0_EN              (1 << 0)
+
 #define USB3OTG_BC_REG_BASE                     0xFF200000
 
 #define USB3OTG_CTRL0                           (USB3OTG_BC_REG_BASE + 0x000)

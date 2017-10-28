@@ -317,6 +317,9 @@ InitPeripherals (
   IN VOID
   )
 {
+  // Enable FPLL0
+  MmioOr32 (SCTRL_SCFPLLCTRL0, SCTRL_SCFPLLCTRL0_FPLL0_EN);
+
   InitSdCard ();
 
   // Enable wifi clock
