@@ -43,7 +43,7 @@
 
 #define USB_TYPE_LENGTH              16
 #define USB_BLOCK_HIGH_SPEED_SIZE    512
-#define DATA_SIZE                    512
+#define DATA_SIZE                    131072
 #define CMD_SIZE                     512
 #define MATCH_CMD_LITERAL(Cmd, Buf) !AsciiStrnCmp (Cmd, Buf, sizeof (Cmd) - 1)
 
