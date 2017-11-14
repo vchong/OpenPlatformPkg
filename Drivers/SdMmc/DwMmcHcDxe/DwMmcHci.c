@@ -135,14 +135,16 @@ DwMmcHcRwMmio (
     return EFI_INVALID_PARAMETER;
   }
 
-  if ((Count != 1) && (Count != 2) && (Count != 4) && (Count != 8)) {
+  if ((Count != 4) && (Count != 8)) {
     return EFI_INVALID_PARAMETER;
   }
 
+  // Since there's FIFO in Designware controller, map it to 32-bit word only.
+  Count = Count / sizeof (UINT32);
   if (Read) {
     Status = PciIo->Mem.Read (
                           PciIo,
-                          EfiPciIoWidthUint8,
+                          EfiPciIoWidthUint32,
                           BarIndex,
                           (UINT64) Offset,
                           Count,
@@ -151,7 +153,7 @@ DwMmcHcRwMmio (
   } else {
     Status = PciIo->Mem.Write (
                           PciIo,
-                          EfiPciIoWidthUint8,
+                          EfiPciIoWidthUint32,
                           BarIndex,
                           (UINT64) Offset,
                           Count,
