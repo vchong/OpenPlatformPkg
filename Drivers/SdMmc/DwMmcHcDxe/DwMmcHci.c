@@ -1214,17 +1214,23 @@ ReadFifo (
   UINT32                    Intsts;
   UINT32                    Sts;
   UINT32                    FifoCount;
+  UINT32                    Index;     // count with bytes
+  UINT32                    Ascending;
+  UINT32                    Descending;
 
   PciIo   = Trb->Private->PciIo;
   Received = 0;
-  Count = (Trb->DataLen + 3) / 4;
-  while (1) {
+  Count = 0;
+  Index = 0;
+  Ascending = 0;
+  Descending = ((Trb->DataLen + 3) & ~3) - 4;
+  do {
     Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_RINTSTS, TRUE, sizeof (Intsts), &Intsts);
     if (EFI_ERROR (Status)) {
       DEBUG ((DEBUG_ERROR, "ReadFifo: failed to read RINTSTS, Status:%r\n", Status));
       return Status;
     }
-    if (Intsts & DW_MMC_INT_DTO) {
+    if (Trb->DataLen && ((Intsts & DW_MMC_INT_RXDR) || (Intsts & DW_MMC_INT_DTO))) {
       Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_STATUS, TRUE, sizeof (Sts), &Sts);
       if (EFI_ERROR (Status)) {
         DEBUG ((DEBUG_ERROR, "ReadFifo: failed to read STATUS, Status:%r\n", Status));
@@ -1232,28 +1238,30 @@ ReadFifo (
       }
       // Convert to bytes
       FifoCount = GET_STS_FIFO_COUNT (Sts) << 2;
-      Count = (MIN (FifoCount, Trb->DataLen) + 3) / 4;
-      Received = 0;
-      // Read FIFO
-      while (Count && (Received < Count)) {
+      if ((FifoCount == 0) && (Received < Trb->DataLen)) {
+        continue;
+      }
+      Index = 0;
+      Count = (MIN (FifoCount, Trb->DataLen) + 3) & ~3;
+      while (Index < Count) {
         Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_FIFO_START, TRUE, sizeof (Data), &Data);
         if (EFI_ERROR (Status)) {
           DEBUG ((DEBUG_ERROR, "ReadFifo: failed to read FIFO, Status:%r\n", Status));
           return Status;
         }
-        *(UINT32 *)((UINTN)Trb->Data + ((Count - Received - 1) << 2)) = SwapBytes32 (Data);
-        Received++;
-      }
-    }
-    if (Intsts & DW_MMC_INT_CMD_DONE) {
-      if ((Intsts == DW_MMC_INT_CMD_DONE) && Count) {
-        // CMD_DONE interrupt comes earlier before other interrupts. Just wait for a while.
-        continue;
-      } else {
-        break;
-      }
-    }
-  }
+        if (Trb->UseBE) {
+          *(UINT32 *)((UINTN)Trb->Data + Descending) = SwapBytes32 (Data);
+          Descending = Descending - 4;
+        } else {
+          *(UINT32 *)((UINTN)Trb->Data + Ascending) = Data;
+          Ascending += 4;
+        }
+        Index += 4;
+        Received += 4;
+      } // while
+    } // if
+  } while (((Intsts & DW_MMC_INT_CMD_DONE) == 0) || (Received < Trb->DataLen));
+  // Clear RINTSTS
   Intsts = ~0;
   Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_RINTSTS, FALSE, sizeof (Intsts), &Intsts);
   if (EFI_ERROR (Status)) {
@@ -1334,9 +1342,13 @@ DwMmcCreateTrb (
     }
 
     PciIo = Private->PciIo;
+#if 0
     if ((Private->Slot[Trb->Slot].CardType == SdCardType) &&
         (Trb->DataLen != 0) &&
         (Trb->DataLen <= DWMMC_FIFO_THRESHOLD)) {
+#else
+    if (Private->Slot[Trb->Slot].CardType == SdCardType) {
+#endif
       Trb->UseFifo = TRUE;
     } else {
       Trb->UseFifo = FALSE;
@@ -1689,6 +1701,9 @@ DwSdExecTrb (
     case SD_STOP_TRANSMISSION:
       Cmd |= BIT_CMD_STOP_ABORT_CMD;
       break;
+    case SD_SEND_SCR:
+      Trb->UseBE = TRUE;
+      break;
     }
     if (Packet->InTransferLength) {
       Cmd |= BIT_CMD_WAIT_PRVDATA_COMPLETE | BIT_CMD_DATA_EXPECTED | BIT_CMD_READ;
@@ -1725,7 +1740,11 @@ DwSdExecTrb (
     if (EFI_ERROR (Status)) {
       return Status;
     }
-    BlkSize = Packet->InTransferLength;
+    if (Packet->InTransferLength > DW_MMC_BLOCK_SIZE) {
+      BlkSize = DW_MMC_BLOCK_SIZE;
+    } else {
+      BlkSize = Packet->InTransferLength;
+    }
     Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_BLKSIZ, FALSE, sizeof (BlkSize), &BlkSize);
     if (EFI_ERROR (Status)) {
       DEBUG ((DEBUG_ERROR, "DwMmcHcReset: set block size fails: %r\n", Status));
@@ -1761,6 +1780,9 @@ DwSdExecTrb (
   } else {
     Timeout = 10000;
     do {
+      if (--Timeout == 0) {
+        break;
+      }
       Status = DwMmcHcRwMmio (PciIo, Trb->Slot, DW_MMC_RINTSTS, TRUE, sizeof (IntStatus), &IntStatus);
       if (EFI_ERROR (Status)) {
         return Status;
@@ -1768,13 +1790,12 @@ DwSdExecTrb (
       if (IntStatus & ErrMask) {
         return EFI_DEVICE_ERROR;
       }
-      if (IntStatus & DW_MMC_INT_DTO) {  // Transfer Done
-        break;
+      if (Trb->DataLen && ((IntStatus & DW_MMC_INT_DTO) == 0)) {  // Transfer Done
+        MicroSecondDelay (10);
+        continue;
+      } else {
+        MicroSecondDelay (10);
       }
-      if (--Timeout == 0) {
-        break;
-      }
-      MicroSecondDelay (10);
     } while (!(IntStatus & DW_MMC_INT_CMD_DONE));
     if (Packet->InTransferLength) {
       do {
