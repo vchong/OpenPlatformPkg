@@ -949,16 +949,7 @@ SdCardIdentification (
     return Status;
   }
   //
-  // 3. Send SDIO Cmd5 to the device to the SDIO device OCR register.
-  //
-  Status = SdioSendOpCond (PassThru, Slot, 0, FALSE);
-  if (!EFI_ERROR (Status)) {
-    DEBUG ((DEBUG_INFO, "SdCardIdentification: Found SDIO device, ignore it as we don't support\n"));
-    return EFI_DEVICE_ERROR;
-  }
-  MicroSecondDelay (10000);
-  //
-  // 4. Send Acmd41 with voltage window 0 to the device
+  // 3. Send Acmd41 with voltage window 0 to the device
   //
   Status = SdCardSendOpCond (PassThru, Slot, 0, 0, FALSE, FALSE, FALSE, &Ocr);
   if (EFI_ERROR (Status)) {
@@ -996,7 +987,7 @@ SdCardIdentification (
   }
 
   //
-  // 5. Repeatly send Acmd41 with supply voltage window to the device.
+  // 4. Repeatly send Acmd41 with supply voltage window to the device.
   //    Note here we only support the cards complied with SD physical
   //    layer simplified spec version 2.0 and version 3.0 and above.
   //
