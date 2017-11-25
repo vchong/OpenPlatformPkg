@@ -139,6 +139,7 @@ typedef struct {
   VOID                                *DmaMap;
 
   BOOLEAN                             UseFifo;
+  BOOLEAN                             UseBE;                  // Big-endian
 
   DW_MMC_HC_PRIVATE_DATA              *Private;
 } DW_MMC_HC_TRB;
