@@ -131,7 +131,7 @@
 [LibraryClasses.common.SEC]
   PrePiLib|EmbeddedPkg/Library/PrePiLib/PrePiLib.inf
   ExtractGuidedSectionLib|EmbeddedPkg/Library/PrePiExtractGuidedSectionLib/PrePiExtractGuidedSectionLib.inf
-  LzmaDecompressLib|IntelFrameworkModulePkg/Library/LzmaCustomDecompressLib/LzmaCustomDecompressLib.inf
+  LzmaDecompressLib|MdeModulePkg/Library/LzmaCustomDecompressLib/LzmaCustomDecompressLib.inf
   MemoryAllocationLib|EmbeddedPkg/Library/PrePiMemoryAllocationLib/PrePiMemoryAllocationLib.inf
   HobLib|EmbeddedPkg/Library/PrePiHobLib/PrePiHobLib.inf
   PrePiHobListPointerLib|ArmPlatformPkg/Library/PrePiHobListPointerLib/PrePiHobListPointerLib.inf
@@ -455,7 +455,9 @@
   #
   EmbeddedPkg/Application/AndroidFastboot/AndroidFastbootApp.inf {
     <LibraryClasses>
+      AbootimgLib|EmbeddedPkg/Library/AbootimgLib/AbootimgLib.inf
       BdsLib|ArmPkg/Library/BdsLib/BdsLib.inf
+      ZLib|EmbeddedPkg/Library/ZLib/ZLib.inf
   }
 
   #
@@ -463,7 +465,9 @@
   #
   EmbeddedPkg/Application/AndroidBoot/AndroidBootApp.inf {
     <LibraryClasses>
+      AbootimgLib|EmbeddedPkg/Library/AbootimgLib/AbootimgLib.inf
       BdsLib|ArmPkg/Library/BdsLib/BdsLib.inf
+      ZLib|EmbeddedPkg/Library/ZLib/ZLib.inf
   }
 
   #
