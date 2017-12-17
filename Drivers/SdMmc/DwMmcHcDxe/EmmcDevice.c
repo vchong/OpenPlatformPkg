@@ -967,7 +967,7 @@ EmmcIdentification (
     return Status;
   }
 
-  Timeout = 30;
+  Timeout = 100;
   do {
     Ocr = EMMC_CMD1_CAPACITY_GREATER_THAN_2GB;
     Status = EmmcGetOcr (PassThru, Slot, &Ocr);
