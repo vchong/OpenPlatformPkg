@@ -62,7 +62,6 @@
   CapsuleLib|MdeModulePkg/Library/DxeCapsuleLibNull/DxeCapsuleLibNull.inf
   GenericBdsLib|IntelFrameworkModulePkg/Library/GenericBdsLib/GenericBdsLib.inf
   PlatformBdsLib|OpenPlatformPkg/Chips/Hisilicon/Library/PlatformIntelBdsLib/PlatformIntelBdsLib.inf
-  AbootimgLib|EmbeddedPkg/Library/AbootimgLib/AbootimgLib.inf
   FdtLib|EmbeddedPkg/Library/FdtLib/FdtLib.inf
   HobLib|MdePkg/Library/DxeHobLib/DxeHobLib.inf
   IoLib|MdePkg/Library/BaseIoLibIntrinsic/BaseIoLibIntrinsic.inf
@@ -133,7 +132,6 @@
   PcdLib|MdePkg/Library/BasePcdLibNull/BasePcdLibNull.inf
   PrePiLib|EmbeddedPkg/Library/PrePiLib/PrePiLib.inf
   ExtractGuidedSectionLib|EmbeddedPkg/Library/PrePiExtractGuidedSectionLib/PrePiExtractGuidedSectionLib.inf
-  LzmaDecompressLib|IntelFrameworkModulePkg/Library/LzmaCustomDecompressLib/LzmaCustomDecompressLib.inf
   MemoryAllocationLib|EmbeddedPkg/Library/PrePiMemoryAllocationLib/PrePiMemoryAllocationLib.inf
   HobLib|EmbeddedPkg/Library/PrePiHobLib/PrePiHobLib.inf
   PrePiHobListPointerLib|ArmPlatformPkg/Library/PrePiHobListPointerLib/PrePiHobListPointerLib.inf
@@ -142,6 +140,7 @@
   MemoryInitPeiLib|ArmPlatformPkg/MemoryInitPei/MemoryInitPeiLib.inf
   ArmGicArchLib|ArmPkg/Library/ArmGicArchSecLib/ArmGicArchSecLib.inf
   DefaultExceptionHandlerLib|ArmPkg/Library/DefaultExceptionHandlerLib/DefaultExceptionHandlerLibBase.inf
+  LzmaDecompressLib|MdeModulePkg/Library/LzmaCustomDecompressLib/LzmaCustomDecompressLib.inf
 
 [LibraryClasses.common.DXE_CORE]
   DxeCoreEntryPoint|MdePkg/Library/DxeCoreEntryPoint/DxeCoreEntryPoint.inf
@@ -501,7 +500,9 @@
   #
   EmbeddedPkg/Application/AndroidFastboot/AndroidFastbootApp.inf {
     <LibraryClasses>
+      AbootimgLib|EmbeddedPkg/Library/AbootimgLib/AbootimgLib.inf
       BdsLib|ArmPkg/Library/BdsLib/BdsLib.inf
+      ZLib|EmbeddedPkg/Library/ZLib/ZLib.inf
   }
 
   #
@@ -509,7 +510,9 @@
   #
   EmbeddedPkg/Application/AndroidBoot/AndroidBootApp.inf {
     <LibraryClasses>
+      AbootimgLib|EmbeddedPkg/Library/AbootimgLib/AbootimgLib.inf
       BdsLib|ArmPkg/Library/BdsLib/BdsLib.inf
+      ZLib|EmbeddedPkg/Library/ZLib/ZLib.inf
   }
 
   #
