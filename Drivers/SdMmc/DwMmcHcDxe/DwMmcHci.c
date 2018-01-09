@@ -35,7 +35,7 @@ DumpCapabilityReg (
   // Dump Capability Data
   //
   DEBUG ((DEBUG_INFO, " == Slot [%d] Capability is 0x%x ==\n", Slot, Capability));
-  DEBUG ((DEBUG_INFO, "   Base Clk Freq     %dMHz\n", Capability->BaseClkFreq));
+  DEBUG ((DEBUG_INFO, "   Base Clk Freq     %dKHz\n", Capability->BaseClkFreq));
   DEBUG ((DEBUG_INFO, "   BusWidth          %d\n", Capability->BusWidth));
   DEBUG ((DEBUG_INFO, "   HighSpeed Support %a\n", Capability->HighSpeed ? "TRUE" : "FALSE"));
   DEBUG ((DEBUG_INFO, "   Voltage 1.8       %a\n", Capability->Voltage18 ? "TRUE" : "FALSE"));
