@@ -412,13 +412,13 @@ AbootimgAppendKernelArgs (
   if (mBoardId == HIKEY960_BOARDID_V1) {
     UnicodeSPrint (
       Args + StrLen (Args), Size - StrLen (Args),
-      L" earlycon=pl011,0xfdf05000,115200 console=ttyAMA5 androidboot.serialno=%s",
+      L" console=ttyAMA5 androidboot.serialno=%s",
       RandomSN->UnicodeSN
       );
   } else {
     UnicodeSPrint (
       Args + StrLen (Args), Size - StrLen (Args),
-      L" earlycon=pl011,0xfff32000,115200 console=ttyAMA6 androidboot.serialno=%s",
+      L" console=ttyAMA6 androidboot.serialno=%s",
       RandomSN->UnicodeSN
       );
   }
