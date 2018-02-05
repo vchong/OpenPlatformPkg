@@ -58,3 +58,4 @@
 
 [Pcd]
   gDwUfsHcDxeTokenSpaceGuid.PcdDwUfsHcDxeBaseAddress
+  gDwUfsHcDxeTokenSpaceGuid.PcdDwUfsHcDxePhy10nm

@@ -347,6 +347,7 @@
   # Ufs
   #
   gDwUfsHcDxeTokenSpaceGuid.PcdDwUfsHcDxeBaseAddress|0xFF3B0000
+  gDwUfsHcDxeTokenSpaceGuid.PcdDwUfsHcDxePhy10nm|FALSE
 
   #
   # DW USB3 controller

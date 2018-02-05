@@ -448,11 +448,14 @@ UfsHcPhyInit (
 
   Private  = UFS_HOST_CONTROLLER_PRIVATE_DATA_FROM_UFSHC (This);
   DwUfsDmeSet (Private->RegBase, 0xd0c1, 0, 1);
-  DwUfsDmeSet (Private->RegBase, 0xd0c1, 0, 1);
   DwUfsDmeSet (Private->RegBase, 0x156a, 0, 2);
   DwUfsDmeSet (Private->RegBase, 0x8114, 0, 1);
   DwUfsDmeSet (Private->RegBase, 0x8121, 0, 0x2d);
   DwUfsDmeSet (Private->RegBase, 0x8122, 0, 1);
+  if(PcdGetBool (PcdDwUfsHcDxePhy10nm)) {
+    DwUfsDmeSet (Private->RegBase, 0x8127, 0, 0x98);
+    DwUfsDmeSet (Private->RegBase, 0x8128, 0, 1);
+  }
   DwUfsDmeSet (Private->RegBase, 0xd085, 0, 1);
   DwUfsDmeSet (Private->RegBase, 0x800d, 4, 0x58);
   DwUfsDmeSet (Private->RegBase, 0x800d, 5, 0x58);
@@ -463,12 +466,21 @@ UfsHcPhyInit (
   DwUfsDmeSet (Private->RegBase, 0xd085, 0, 1);
   DwUfsDmeSet (Private->RegBase, 0x8113, 0, 1);
   DwUfsDmeSet (Private->RegBase, 0xd085, 0, 1);
-  DwUfsDmeSet (Private->RegBase, 0x0095, 4, 0x4a);
-  DwUfsDmeSet (Private->RegBase, 0x0095, 5, 0x4a);
-  DwUfsDmeSet (Private->RegBase, 0x0094, 4, 0x4a);
-  DwUfsDmeSet (Private->RegBase, 0x0094, 5, 0x4a);
-  DwUfsDmeSet (Private->RegBase, 0x008f, 4, 0x7);
-  DwUfsDmeSet (Private->RegBase, 0x008f, 5, 0x7);
+  if(PcdGetBool (PcdDwUfsHcDxePhy10nm)) {
+    DwUfsDmeSet (Private->RegBase, 0x0092, 4, 0xa);
+    DwUfsDmeSet (Private->RegBase, 0x0092, 5, 0xa);
+    DwUfsDmeSet (Private->RegBase, 0x008f, 4, 0xa);
+    DwUfsDmeSet (Private->RegBase, 0x008f, 5, 0xa);
+  } else {
+    DwUfsDmeSet (Private->RegBase, 0x008f, 4, 0x7);
+    DwUfsDmeSet (Private->RegBase, 0x008f, 5, 0x7);
+  }
+  DwUfsDmeSet (Private->RegBase, 0x0095, 4, 0x4f);
+  DwUfsDmeSet (Private->RegBase, 0x0095, 5, 0x4f);
+  DwUfsDmeSet (Private->RegBase, 0x0094, 4, 0x4f);
+  DwUfsDmeSet (Private->RegBase, 0x0094, 5, 0x4f);
+  DwUfsDmeSet (Private->RegBase, 0x008B, 4, 0x4f);
+  DwUfsDmeSet (Private->RegBase, 0x008B, 5, 0x4f);
   DwUfsDmeSet (Private->RegBase, 0x000f, 0, 0x5);
   DwUfsDmeSet (Private->RegBase, 0x000f, 1, 0x5);
   DwUfsDmeSet (Private->RegBase, 0xd085, 0, 1);
@@ -488,7 +500,9 @@ UfsHcPhyInit (
     }
   }
 
-  MmioWrite32 (Private->RegBase + UFS_HC_HCLKDIV_OFFSET, 0xE4);
+  if(!PcdGetBool (PcdDwUfsHcDxePhy10nm))
+    MmioWrite32 (Private->RegBase + UFS_HC_HCLKDIV_OFFSET, 0xE4);
+
   Data = MmioRead32 (Private->RegBase + UFS_HC_AHIT_OFFSET);
   Data &= ~0x3FF;
   MmioWrite32 (Private->RegBase + UFS_HC_AHIT_OFFSET, Data);
@@ -508,13 +522,39 @@ UfsHcPhyInit (
 EFI_STATUS
 EFIAPI
 UfsHcPhySetPowerMode (
-  IN     EDKII_UFS_HOST_CONTROLLER_PROTOCOL        *This
+  IN     EDKII_UFS_HOST_CONTROLLER_PROTOCOL        *This,
+  IN     UINT32                                    DevQuirks
   )
 {
   UFS_HOST_CONTROLLER_PRIVATE_DATA  *Private;
   UINT32                            Data, TxLanes, RxLanes;
 
   Private  = UFS_HOST_CONTROLLER_PRIVATE_DATA_FROM_UFSHC (This);
+
+  if(PcdGetBool (PcdDwUfsHcDxePhy10nm)) {
+    /* VS_DebugSaveConfigTime */
+    DwUfsDmeSet (Private->RegBase, 0xD0A0, 0x0, 0x13);
+    /* g1 sync length */
+    DwUfsDmeSet (Private->RegBase, 0x1552, 0x0, 0x4F);
+    /* g2 sync length */
+    DwUfsDmeSet (Private->RegBase, 0x1554, 0x0, 0x4F);
+    /* g3 sync length */
+    DwUfsDmeSet (Private->RegBase, 0x1556, 0x0, 0x4F);
+    /* PA_Hibern8Time*/
+    DwUfsDmeSet (Private->RegBase, 0x15A7, 0x0, 0xA);
+    /* PA_Tactivate*/
+    DwUfsDmeSet (Private->RegBase, 0x15A8, 0x0, 0xA);
+    DwUfsDmeSet (Private->RegBase, 0xD085, 0x0, 0x01);
+  }
+
+  if (DevQuirks & UFS_DEVICE_QUIRK_HOST_VS_DEBUGSAVECONFIGTIME) {
+    DEBUG ((DEBUG_INFO | DEBUG_LOAD, "ufs: H**** device must set VS_DebugSaveConfigTime 0x10\n"));
+    /* VS_DebugSaveConfigTime */
+    DwUfsDmeSet (Private->RegBase, 0xD0A0, 0x0, 0x10);
+    /* sync length */
+    DwUfsDmeSet (Private->RegBase, 0x1556, 0x0, 0x48);
+  }
+
   // PA_Tactive
   DwUfsDmeGet (Private->RegBase, 0x15A8, 0, &Data);
   if (Data < 7) {

@@ -38,3 +38,4 @@
 
 [PcdsFixedAtBuild.common]
   gDwUfsHcDxeTokenSpaceGuid.PcdDwUfsHcDxeBaseAddress|0x0|UINT32|0x00000001
+  gDwUfsHcDxeTokenSpaceGuid.PcdDwUfsHcDxePhy10nm|FALSE|BOOLEAN|0x00000002
