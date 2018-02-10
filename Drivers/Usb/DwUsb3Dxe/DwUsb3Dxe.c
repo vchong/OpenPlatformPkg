@@ -88,7 +88,6 @@ STATIC usb_setup_pkt_t                *gEndPoint0SetupPacket;
 #define USB3_STATUS_BUF_SIZE    512
 STATIC UINT8                          *gEndPoint0StatusBuf;
 STATIC USB_DEVICE_RX_CALLBACK         mDataReceivedCallback;
-STATIC UINTN                          mDataBufferSize;
 /*
 	UINT8 ep0_status_buf[USB3_STATUS_BUF_SIZE];
 */
@@ -1752,22 +1751,8 @@ DwUsb3DoSetConfig (
         usb3_pcd_req_t                *req = &ep->req;
 
         // AndroidFast App will free the rx buffer.
-        gRxBuf = AllocatePool (DATA_SIZE);
-        ASSERT (gRxBuf != NULL);
-        WriteBackDataCacheRange (gRxBuf, DATA_SIZE);
         req->bufdma = (UINT64 *)gRxBuf;
-        if (mDataBufferSize == 0) {
-          req->length = CMD_SIZE;
-        } else if (mDataBufferSize > DATA_SIZE) {
-          req->length = DATA_SIZE;
-          mDataBufferSize = mDataBufferSize - DATA_SIZE;
-        } else if (mDataBufferSize > CMD_SIZE) {
-          req->length = CMD_SIZE;
-          mDataBufferSize = mDataBufferSize - CMD_SIZE;
-        } else {
-          req->length = mDataBufferSize;
-          mDataBufferSize = 0;
-        }
+        req->length = DATA_SIZE;
         DwUsb3EndPointXStartTransfer (pcd, ep);
       }
     } else {
@@ -2117,30 +2102,6 @@ DwUsb3EndPointcompleteRequest (
     // complete the OUT request
     // FIXME flush dma?
     DwUsb3RequestDone (pcd, ep, req, 0);
-    {
-      // prepare for EP1 OUT
-      usb3_pcd_ep_t                 *ep = &pcd->out_ep;
-      usb3_pcd_req_t                *req = &ep->req;
-
-      ZeroMem (req, sizeof (usb3_pcd_req_t));
-      gRxBuf = AllocatePool (DATA_SIZE);
-      ASSERT (gRxBuf != NULL);
-      WriteBackDataCacheRange (gRxBuf, DATA_SIZE);
-      req->bufdma = (UINT64 *)gRxBuf;
-      if (mDataBufferSize == 0) {
-        req->length = CMD_SIZE;
-      } else if (mDataBufferSize > DATA_SIZE) {
-        req->length = DATA_SIZE;
-        mDataBufferSize = mDataBufferSize - DATA_SIZE;
-      } else if (mDataBufferSize > CMD_SIZE) {
-        req->length = CMD_SIZE;
-        mDataBufferSize = mDataBufferSize - CMD_SIZE;
-      } else {
-        req->length = mDataBufferSize;
-        mDataBufferSize = 0;
-      }
-      DwUsb3EndPointXStartTransfer (pcd, ep);
-    }
   }
 }
 
@@ -2275,6 +2236,10 @@ DwUsb3Start (
   EFI_STATUS             Status;
   EFI_EVENT              TimerEvent;
 
+  gRxBuf = AllocatePool (DATA_SIZE);
+  ASSERT (gRxBuf != NULL);
+  WriteBackDataCacheRange (gRxBuf, DATA_SIZE);
+
   //gEventBuf = UncachedAllocateAlignedZeroPool (DWUSB3_EVENT_BUF_SIZE << 2, 256);
   gEventBuf = UncachedAllocatePages (EFI_SIZE_TO_PAGES (DWUSB3_EVENT_BUF_SIZE << 2));
   if (gEventBuf == NULL) {
@@ -2307,6 +2272,39 @@ DwUsb3Start (
 }
 
 EFI_STATUS
+DwUsb3Request (
+  IN        UINTN  Size
+  )
+{
+  usb3_pcd_t                    *pcd = &gPcd;
+  usb3_pcd_ep_t                 *ep = &pcd->out_ep;
+  usb3_pcd_req_t                *req = &ep->req;
+  UINTN                         len;
+
+  if (!gRxBuf) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  if (Size % ep->maxpacket) {
+    len = (Size & ~(ep->maxpacket - 1)) + ep->maxpacket;
+  } else {
+    len = Size;
+  }
+
+  if (len > DATA_SIZE) {
+    len = DATA_SIZE;
+  }
+
+  // prepare for EP1 OUT
+  ZeroMem (req, sizeof (usb3_pcd_req_t));
+  req->bufdma = (UINT64 *)gRxBuf;
+  req->length = len;
+  DwUsb3EndPointXStartTransfer (pcd, ep);
+
+  return EFI_SUCCESS;
+}
+
+EFI_STATUS
 DwUsb3Send (
   IN        UINT8  EndpointIndex,
   IN        UINTN  Size,
@@ -2321,17 +2319,6 @@ DwUsb3Send (
   req->bufdma = (UINT64 *)Buffer;
   req->length = Size;
   DwUsb3EndPointXStartTransfer (pcd, ep);
-  return EFI_SUCCESS;
-}
-
-EFI_STATUS
-DwUsb3Request (
-  IN UINTN   BufferSize
-  )
-{
-  if (BufferSize) {
-    mDataBufferSize = BufferSize;
-  }
   return EFI_SUCCESS;
 }
 
