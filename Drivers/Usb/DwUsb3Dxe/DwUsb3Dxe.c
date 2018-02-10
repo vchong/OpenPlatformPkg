@@ -1891,34 +1891,34 @@ DwUsb3DoGetDescriptor (
       case STRING_LANGUAGE:
         Descriptor = (EFI_USB_STRING_DESCRIPTOR *)(UINTN)gEndPoint0StatusBuf;
         ASSERT (Descriptor != NULL);
-        Descriptor->Length = LANG_LENGTH * sizeof (CHAR16);
         Descriptor->DescriptorType = USB_DESC_TYPE_STRING;
         DwUsb->GetLang (Descriptor->String, &Descriptor->Length);
-        value = Descriptor->Length;
+        value = 2 + Descriptor->Length;
+        Descriptor->Length = value;
         break;
       case STRING_MANUFACTURER:
         Descriptor = (EFI_USB_STRING_DESCRIPTOR *)(UINTN)gEndPoint0StatusBuf;
         ASSERT (Descriptor != NULL);
-        Descriptor->Length = MANU_FACTURER_STRING_LENGTH * sizeof (CHAR16);
         Descriptor->DescriptorType = USB_DESC_TYPE_STRING;
         DwUsb->GetManuFacturer (Descriptor->String, &Descriptor->Length);
-        value = Descriptor->Length;
+        value = 2 + Descriptor->Length;
+        Descriptor->Length = value;
         break;
       case STRING_PRODUCT:
         Descriptor = (EFI_USB_STRING_DESCRIPTOR *)(UINTN)gEndPoint0StatusBuf;
         ASSERT (Descriptor != NULL);
-        Descriptor->Length = PRODUCT_STRING_LENGTH * sizeof (CHAR16);
         Descriptor->DescriptorType = USB_DESC_TYPE_STRING;
         DwUsb->GetProduct (Descriptor->String, &Descriptor->Length);
-        value = Descriptor->Length;
+        value = 2 + Descriptor->Length;
+        Descriptor->Length = value;
         break;
       case STRING_SERIAL:
         Descriptor = (EFI_USB_STRING_DESCRIPTOR *)(UINTN)gEndPoint0StatusBuf;
         ASSERT (Descriptor != NULL);
-        Descriptor->Length = SERIAL_STRING_LENGTH * sizeof (CHAR16);
         Descriptor->DescriptorType = USB_DESC_TYPE_STRING;
         DwUsb->GetSerialNo (Descriptor->String, &Descriptor->Length);
-        value = Descriptor->Length;
+        value = 2 + Descriptor->Length;
+        Descriptor->Length = value;
         break;
       default:
         EndPoint0DoStall (pcd);
