@@ -30,6 +30,8 @@
 #define SCTRL_SCFPLLCTRL0                       (SCTRL_REG_BASE + 0x120)
 #define SCTRL_SCFPLLCTRL0_FPLL0_EN              (1 << 0)
 
+#define SCTRL_BAK_DATA0                         (SCTRL_REG_BASE + 0x40C)
+
 #define USB3OTG_BC_REG_BASE                     0xFF200000
 
 #define USB3OTG_CTRL0                           (USB3OTG_BC_REG_BASE + 0x000)
