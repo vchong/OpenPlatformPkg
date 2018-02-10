@@ -29,6 +29,7 @@
 #include <Library/IoLib.h>
 #include <Library/PcdLib.h>
 #include <Library/PrintLib.h>
+#include <Library/SerialPortLib.h>
 #include <Library/TimerLib.h>
 #include <Library/UefiBootServicesTableLib.h>
 #include <Library/UefiRuntimeServicesTableLib.h>
@@ -95,6 +96,12 @@ typedef struct {
   UINT64        Data;
   CHAR16        UnicodeSN[SERIAL_NUMBER_SIZE];
 } RANDOM_SERIAL_NUMBER;
+
+enum {
+  BOOT_MODE_RECOVERY  = 0,
+  BOOT_MODE_NORMAL,
+  BOOT_MODE_MASK = 1,
+};
 
 STATIC UINTN    mBoardId;
 
@@ -348,6 +355,13 @@ OnEndOfDxe (
   IN VOID       *Context
   )
 {
+  UINT32        BootMode;
+
+  BootMode = MmioRead32 (SCTRL_BAK_DATA0) & BOOT_MODE_MASK;
+  if (BootMode == BOOT_MODE_RECOVERY) {
+    SerialPortWrite ((UINT8 *)"WARNING: CAN NOT BOOT KERNEL IN RECOVERY MODE!\r\n", 48);
+    SerialPortWrite ((UINT8 *)"Switch to normal boot mode, then reboot to boot kernel.\r\n", 57);
+  }
 }
 
 EFI_STATUS
