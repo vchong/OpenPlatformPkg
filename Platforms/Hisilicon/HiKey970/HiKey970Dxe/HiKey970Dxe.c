@@ -39,6 +39,7 @@
 #include <Protocol/EmbeddedGpio.h>
 #include <Protocol/NonDiscoverableDevice.h>
 #include <Protocol/PlatformVirtualKeyboard.h>
+#include <HisiSpmiControllerSpmi.h>
 
 #define ADC_ADCIN0                       0
 #define ADC_ADCIN1                       1
@@ -68,10 +69,10 @@
 #define BOARDID_VALUE9                   9
 #define BOARDID_UNKNOW                   0xF
 
-#define BOARDID3_BASE                    5
+#define BOARDID3_BASE                    6
 
-#define HIKEY970_BOARDID_V1              5300
-#define HIKEY970_BOARDID_V2              5301
+#define HIKEY970_BOARDID_V1              6300
+#define HIKEY970_BOARDID_V2              6301
 
 #define HIKEY970_COMPATIBLE_LEDS_V1      "gpio-leds_v1"
 #define HIKEY970_COMPATIBLE_LEDS_V2      "gpio-leds_v2"
@@ -99,7 +100,62 @@ typedef struct {
 STATIC UINTN    mBoardId;
 
 STATIC EMBEDDED_GPIO   *mGpio;
-#if 0
+
+#define CFG_CONFIG_HISI_SPMI
+
+#ifdef  CFG_CONFIG_HISI_SPMI
+STATIC HISI_SPMI_CONTROLLER_PROTOCOL  *mSpmiController;
+
+/**hkadc**/
+#define HKADC_CTRL      0x2ae
+#define HKADC_START     0x2af
+#define HKADC_DATAH     0x2b1
+#define HKADC_DATAL     0x2b2
+#define HKADC_REFER_VCC  1800
+#define HKADC_PRECISION   1
+
+STATIC
+EFI_STATUS
+AdcGetAdc (
+  IN  UINTN         Channel,
+  OUT UINTN         *Value
+  )
+{
+  EFI_STATUS        Status;
+  UINT8 Hkadc_value = 1;
+  UINT8 Hkadc_ctrl = 0x80;
+  UINT8 Num = 1;
+  UINT32  Dth = 0;
+  UINT32  Dtl = 0;
+  UINT32 Data;
+
+  Status = gBS->LocateProtocol(&gHisiSpmiControllerProtocolGuid, NULL, (VOID **)&mSpmiController);
+    if (EFI_ERROR (Status)) {
+        DEBUG ((DEBUG_WARN, "Warning: Failed on LocateProtocol mSpmiController \n"));
+    }
+
+ /*1*/
+  Status = mSpmiController->Write(mSpmiController, SPMI_SLAVEID_HI6421v600, HKADC_CTRL, (UINT8*)&Channel, 1);
+  /*4*/
+    do {
+        /*2*/
+        MicroSecondDelay(3);
+        Status = mSpmiController->Write(mSpmiController, SPMI_SLAVEID_HI6421v600, HKADC_START, (UINT8*)&Hkadc_value, 1);
+
+        /*3*/
+        MicroSecondDelay(13);
+        Status = mSpmiController->Read(mSpmiController, SPMI_SLAVEID_HI6421v600, HKADC_DATAL, (UINT8*)&Dtl, 1);
+        Status = mSpmiController->Read(mSpmiController, SPMI_SLAVEID_HI6421v600, HKADC_DATAH, (UINT8*)&Dth, 1);
+        Data = ((Dth << 4) & HKADC_VALUE_HIGH) | ((Dtl >> 4) & HKADC_VALUE_LOW);
+       *Value = Data;
+    } while (--Num);
+
+    /*5*/
+    Status = mSpmiController->Write(mSpmiController, SPMI_SLAVEID_HI6421v600, HKADC_CTRL, (UINT8*)&Hkadc_ctrl, 1);
+
+    return EFI_SUCCESS;
+}
+#else
 STATIC
 VOID
 InitAdc (
@@ -157,12 +213,13 @@ AdcGetAdc (
   *Value = Data;
   return EFI_SUCCESS;
 }
+#endif
 
 STATIC
 EFI_STATUS
 AdcGetValue (
   IN UINTN         Channel,
-  IN OUT UINTN     *Value
+  OUT UINTN     *Value
   )
 {
   EFI_STATUS       Status;
@@ -223,9 +280,9 @@ InitBoardId (
 {
   UINTN              Adcin0, Adcin1, Adcin2;
   UINTN              Adcin0Remap, Adcin1Remap, Adcin2Remap;
-
+#ifndef CFG_CONFIG_HISI_SPMI
   InitAdc ();
-
+#endif
   // read ADC channel0 data
   AdcGetValue (ADC_ADCIN0, &Adcin0);
   DEBUG ((DEBUG_ERROR, "[BDID]Adcin0:%d\n", Adcin0));
@@ -254,7 +311,7 @@ InitBoardId (
   DEBUG ((DEBUG_ERROR, "[BDID]boardid: %d\n", *Id));
   return EFI_SUCCESS;
 }
-#endif
+
 STATIC
 VOID
 InitSdCard (
@@ -605,13 +662,12 @@ HiKey970EntryPoint (
 {
   EFI_STATUS            Status;
   EFI_EVENT             EndOfDxeEvent;
-#if 0
+
   Status = InitBoardId (&mBoardId);
   if (EFI_ERROR (Status)) {
     return Status;
   }
-#endif
-	mBoardId = HIKEY970_BOARDID_V1;	
+
   InitPeripherals ();
 
   //

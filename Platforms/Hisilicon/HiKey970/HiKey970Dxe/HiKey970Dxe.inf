@@ -28,6 +28,7 @@
   OpenPlatformPkg/Drivers/Block/DwUfsHcDxe/DwUfsHcDxe.dec
   OpenPlatformPkg/Drivers/Keyboard/VirtualKeyboardDxe/VirtualKeyboardDxe.dec
   OpenPlatformPkg/Platforms/Hisilicon/HiKey970/HiKey970.dec
+  OpenPlatformPkg/Platforms/Hisilicon/HiKey970/HiKey970SpmiDxe/HisiSpmiControllerSpmi.dec
 
 [LibraryClasses]
   BaseMemoryLib

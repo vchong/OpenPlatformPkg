@@ -432,6 +432,11 @@
   ArmPlatformPkg/Drivers/PL061GpioDxe/PL061GpioDxe.inf
 
   #
+  # SPMI
+  #
+  OpenPlatformPkg/Platforms/Hisilicon/HiKey970/HiKey970SpmiDxe/HisiSpmiControllerDxe.inf
+
+  #
   # Virtual Keyboard
   #
   OpenPlatformPkg/Drivers/Keyboard/VirtualKeyboardDxe/VirtualKeyboardDxe.inf

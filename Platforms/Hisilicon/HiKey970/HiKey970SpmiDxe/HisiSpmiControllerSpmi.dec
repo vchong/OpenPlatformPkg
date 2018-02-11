@@ -1,0 +1,36 @@
+#/** @file
+# Framework Module Development Environment Industry Standards
+#
+# This Package provides headers and libraries that conform to EFI/PI Industry standards.
+# Copyright (c) 2007, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2012-2014, ARM Ltd. All rights reserved.<BR>
+# Copyright (c) 2015-2017, Linaro. All rights reserved.<BR>
+#
+#    This program and the accompanying materials are licensed and made available under
+#    the terms and conditions of the BSD License which accompanies this distribution.
+#    The full text of the license may be found at
+#    http://opensource.org/licenses/bsd-license.php
+#
+#    THE PROGRAM IS DISTRIBUTED UNDER THE BSD LICENSE ON AN "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
+#
+#**/
+
+[Defines]
+  DEC_SPECIFICATION              = 0x00010019
+  PACKAGE_NAME                   = HisiSpmiController
+  PACKAGE_GUID                   = 3869994d-c96c-4d20-9bfb-3c8d71bb911d
+  PACKAGE_VERSION                = 1.0
+
+
+################################################################################
+#
+# Include Section - list of Include Paths that are provided by this package.
+#                   Comments are used for Keywords and Module Types.
+#
+# Supported Module Types:
+#  BASE SEC PEI_CORE PEIM DXE_CORE DXE_DRIVER DXE_RUNTIME_DRIVER DXE_SMM_DRIVER DXE_SAL_DRIVER UEFI_DRIVER UEFI_APPLICATION
+#
+################################################################################
+[Protocols]
+ gHisiSpmiControllerProtocolGuid = {0x04cbca39, 0x93cf, 0x31d4, {0xb8, 0x25, 0x74, 0xd4, 0x35, 0xde, 0xc6, 0x2b}}

@@ -119,6 +119,11 @@ READ_LOCK_STATUS   = TRUE
   INF ArmPlatformPkg/Drivers/PL061GpioDxe/PL061GpioDxe.inf
 
   #
+  # SPMI
+  #
+  INF OpenPlatformPkg/Platforms/Hisilicon/HiKey970/HiKey970SpmiDxe/HisiSpmiControllerDxe.inf
+
+  #
   # Virtual Keyboard
   #
   INF OpenPlatformPkg/Drivers/Keyboard/VirtualKeyboardDxe/VirtualKeyboardDxe.inf
