@@ -50,6 +50,10 @@
 
 #define UFS_BLOCK_SIZE                   4096
 
+#define ISXDIGIT(c)	(((c) >= '0' && (c) <= '9') \
+			         || ((c) >= 'A' && (c) <= 'F') \
+			         || ((c) >= 'a' && (c) <= 'f'))
+
 typedef struct _FASTBOOT_PARTITION_LIST {
   LIST_ENTRY  Link;
   CHAR16      PartitionName[PARTITION_NAME_MAX_LENGTH];
@@ -606,11 +610,50 @@ HiKey970FastbootPlatformGetVar (
 }
 
 EFI_STATUS
+AssignedSN (
+  IN  CHAR8   *Command,
+  OUT CHAR16    *UnicodeSN
+  )
+{
+  UINT32    i;
+  UINT32    Offset;
+  UINT32    ComLen;
+  RANDOM_SERIAL_NUMBER     RandomSN;
+
+  if (UnicodeSN == NULL) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  Offset = 0;
+  while (*(Command + Offset) == ' ')
+    Offset++;
+
+  ComLen = AsciiStrLen(Command + Offset);
+  if (ComLen == 0) {
+    return EFI_INVALID_PARAMETER;
+  }
+
+  for (i = 0; i < ComLen; i++) {
+    if (ISXDIGIT(*(Command + Offset + i))) {
+      continue;
+    } else {
+      return EFI_INVALID_PARAMETER;
+    }
+  }
+  ZeroMem (&RandomSN, sizeof (RANDOM_SERIAL_NUMBER));
+  RandomSN.Data = AsciiStrHexToUint64(Command + Offset);
+  UnicodeSPrint (RandomSN.UnicodeSN, SERIAL_NUMBER_SIZE * sizeof (CHAR16), L"%lx", RandomSN.Data);
+  StrCpyS (UnicodeSN, SERIAL_NUMBER_SIZE * sizeof (CHAR16), RandomSN.UnicodeSN);
+  return EFI_SUCCESS;
+}
+
+EFI_STATUS
 HiKey970FastbootPlatformOemCommand (
   IN  CHAR8   *Command
   )
 {
   EFI_STATUS   Status;
+  UINT64       StrLen;
   CHAR16       UnicodeSN[SERIAL_NUMBER_SIZE];
 
   if (AsciiStrCmp (Command, "Demonstrate") == 0) {
@@ -620,6 +663,15 @@ HiKey970FastbootPlatformOemCommand (
     Status = GenerateUsbSN (UnicodeSN);
     if (EFI_ERROR (Status)) {
       DEBUG ((DEBUG_ERROR, "Failed to generate USB Serial Number.\n"));
+      return Status;
+    }
+    Status = StoreSNToBlock (mFlashHandle, SERIAL_NUMBER_LBA, UnicodeSN);
+    return Status;
+  } else if (AsciiStrnCmp(Command, "serialno set", AsciiStrLen("serialno set")) == 0) {
+    StrLen = AsciiStrLen("serialno set");
+    Status = AssignedSN (Command + StrLen, UnicodeSN);
+    if (EFI_ERROR (Status)) {
+      DEBUG ((DEBUG_ERROR, "Failed to Set Serial Number From Command Line.\n"));
       return Status;
     }
     Status = StoreSNToBlock (mFlashHandle, SERIAL_NUMBER_LBA, UnicodeSN);
