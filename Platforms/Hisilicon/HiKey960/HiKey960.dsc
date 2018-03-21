@@ -282,7 +282,7 @@
   gEmbeddedTokenSpaceGuid.PcdEmbeddedDefaultTextColor|0x07
   gEmbeddedTokenSpaceGuid.PcdEmbeddedMemVariableStoreSize|0x10000
 
-  gArmPlatformTokenSpaceGuid.PcdFirmwareVendor|"Linaro"
+  gArmPlatformTokenSpaceGuid.PcdFirmwareVendor|"HiKey960"
   gEfiMdeModulePkgTokenSpaceGuid.PcdFirmwareVersionString|L"Alpha"
   gEmbeddedTokenSpaceGuid.PcdEmbeddedPrompt|"HiKey960"
 
