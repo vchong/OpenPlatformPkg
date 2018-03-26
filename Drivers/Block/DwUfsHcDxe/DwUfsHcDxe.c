@@ -310,6 +310,8 @@ UfsHcFlush (
   IN  EDKII_UFS_HOST_CONTROLLER_PROTOCOL *This
   )
 {
+  ArmInstructionSynchronizationBarrier ();
+  ArmDataSynchronizationBarrier ();
   return EFI_SUCCESS;
 }
 
