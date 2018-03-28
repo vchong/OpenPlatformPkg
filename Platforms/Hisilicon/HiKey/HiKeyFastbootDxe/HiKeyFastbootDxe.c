@@ -540,7 +540,8 @@ HiKeyFastbootPlatformGetVar (
   } else if ( !AsciiStrnCmp (Name, "partition-type", 14)) {
       DEBUG ((DEBUG_ERROR, "Fastboot platform: check for partition-type:%a\n", (Name + 15)));
     if ( !AsciiStrnCmp  ( (Name + 15) , "system", 6) || !AsciiStrnCmp  ( (Name + 15) , "userdata", 8)
-            || !AsciiStrnCmp  ( (Name + 15) , "cache", 5)) {
+            || !AsciiStrnCmp  ( (Name + 15) , "cache", 5)
+            || !AsciiStrnCmp  ( (Name + 15) , "vendor", 6)) {
       AsciiStrCpy (Value, "ext4");
     } else {
       AsciiStrCpy (Value, "raw");
