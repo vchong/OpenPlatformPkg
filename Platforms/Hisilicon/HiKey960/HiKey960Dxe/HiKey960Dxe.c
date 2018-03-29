@@ -104,6 +104,7 @@ enum {
 };
 
 STATIC UINTN    mBoardId;
+STATIC UINTN    mReboot;
 
 STATIC EMBEDDED_GPIO   *mGpio;
 
@@ -617,7 +618,8 @@ VirtualKeyboardClear (
   if (VirtualKey == NULL) {
     return EFI_INVALID_PARAMETER;
   }
-  if (MmioRead32 (ADB_REBOOT_ADDRESS) == ADB_REBOOT_BOOTLOADER) {
+  // Only clear the reboot flag that is set before reboot.
+  if (mReboot && (MmioRead32 (ADB_REBOOT_ADDRESS) == ADB_REBOOT_BOOTLOADER)) {
     MmioWrite32 (ADB_REBOOT_ADDRESS, ADB_REBOOT_NONE);
     WriteBackInvalidateDataCacheRange ((VOID *)ADB_REBOOT_ADDRESS, 4);
   }
@@ -647,6 +649,11 @@ HiKey960EntryPoint (
   }
 
   InitPeripherals ();
+
+  // Record whether the reboot flag was set before reboot
+  if (MmioRead32 (ADB_REBOOT_ADDRESS) == ADB_REBOOT_BOOTLOADER) {
+    mReboot = 1;
+  }
 
   //
   // Create an event belonging to the "gEfiEndOfDxeEventGroupGuid" group.
