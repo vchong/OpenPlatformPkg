@@ -104,7 +104,8 @@ enum {
 };
 
 STATIC UINTN    mBoardId;
-STATIC UINTN    mReboot;
+STATIC UINTN    mRebootUpdated;
+STATIC UINTN    mRebootReason;
 
 STATIC EMBEDDED_GPIO   *mGpio;
 
@@ -594,6 +595,10 @@ VirtualKeyboardQuery (
   if ((VirtualKey == NULL) || (mGpio == NULL)) {
     return FALSE;
   }
+  // If current reason doesn't match the initial one, it's updated by fastboot.
+  if (MmioRead32 (ADB_REBOOT_ADDRESS) != mRebootReason) {
+    mRebootUpdated = 1;
+  }
   if (MmioRead32 (ADB_REBOOT_ADDRESS) == ADB_REBOOT_BOOTLOADER) {
     goto Done;
   } else {
@@ -619,7 +624,8 @@ VirtualKeyboardClear (
     return EFI_INVALID_PARAMETER;
   }
   // Only clear the reboot flag that is set before reboot.
-  if (mReboot && (MmioRead32 (ADB_REBOOT_ADDRESS) == ADB_REBOOT_BOOTLOADER)) {
+  if ((MmioRead32 (ADB_REBOOT_ADDRESS) == ADB_REBOOT_BOOTLOADER) &&
+      (mRebootUpdated == 0)) {
     MmioWrite32 (ADB_REBOOT_ADDRESS, ADB_REBOOT_NONE);
     WriteBackInvalidateDataCacheRange ((VOID *)ADB_REBOOT_ADDRESS, 4);
   }
@@ -650,10 +656,8 @@ HiKey960EntryPoint (
 
   InitPeripherals ();
 
-  // Record whether the reboot flag was set before reboot
-  if (MmioRead32 (ADB_REBOOT_ADDRESS) == ADB_REBOOT_BOOTLOADER) {
-    mReboot = 1;
-  }
+  // Record the reboot reason if it exists
+  mRebootReason = MmioRead32 (ADB_REBOOT_ADDRESS);
 
   //
   // Create an event belonging to the "gEfiEndOfDxeEventGroupGuid" group.
