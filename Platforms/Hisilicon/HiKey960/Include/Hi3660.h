@@ -144,4 +144,7 @@
 #define MASK_UFS_DEVICE_RESET                   (1 << 16)
 #define BIT_UFS_DEVICE_RESET                    (1 << 0)
 
+#define SCTRL_SCBAKDATA7                        (SCTRL_REG_BASE + 0x428)
+#define HIKEY_REGION_SIZE(x)                    ((((x) >> 0x8) & 0xF) << 30)
+
 #endif /* __HI3660_H__ */
