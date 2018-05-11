@@ -355,6 +355,42 @@ InitSdCard (
   } while ((Data & (1 << 17)) != (1 << 17));
 }
 
+#ifdef  CFG_CONFIG_HISI_SPMI
+
+STATIC
+EFI_STATUS
+RegulatorEenable (
+  IN VOID
+  )
+{
+  EFI_STATUS        Status;
+  STATIC HISI_SPMI_CONTROLLER_PROTOCOL  *mSpmiIo;
+  UINT8 RegVal;
+
+  Status = gBS->LocateProtocol(&gHisiSpmiControllerProtocolGuid, NULL, (VOID **)&mSpmiIo);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Warning: Failed on LocateProtocol mSpmiIo (status: %r)\n", Status));
+    return EFI_DEVICE_ERROR;
+  }
+
+  /* LDO28 voltage set, 1.8v */
+  RegVal = 0x3 << 0;
+  Status = mSpmiIo->Write(mSpmiIo, SPMI_SLAVEID_HI6421v600, PMIC_LDO28_VSET_ADDR, (UINT8*)&RegVal, 1);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "Warning: Couldn't Set LDO28 Voltage (status: %r)\n", Status));
+  }
+
+  /* LDO28 enable */
+  RegVal = 0x01;
+  Status = mSpmiIo->Write(mSpmiIo, SPMI_SLAVEID_HI6421v600, PMIC_LDO28_ONOFF_ADDR, (UINT8*)&RegVal, 1);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_WARN, "Warning: Couldn't Set LDO28 ON (status: %r)\n", Status));
+  }
+
+  return EFI_SUCCESS;
+}
+#endif
+
 VOID
 InitPeripherals (
   IN VOID
@@ -368,6 +404,10 @@ InitPeripherals (
   // Enable wifi clock
   MmioOr32 (PMIC_HARDWARE_CTRL0, PMIC_HARDWARE_CTRL0_WIFI_CLK);
   MmioOr32 (PMIC_OSC32K_ONOFF_CTRL, PMIC_OSC32K_ONOFF_CTRL_EN_32K);
+
+#ifdef  CFG_CONFIG_HISI_SPMI
+  RegulatorEenable ();
+#endif
 }
 
 /**
