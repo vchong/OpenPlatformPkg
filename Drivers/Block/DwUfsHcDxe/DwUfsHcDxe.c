@@ -348,6 +348,8 @@ UfsHcMmioRead (
 
   Private  = UFS_HOST_CONTROLLER_PRIVATE_DATA_FROM_UFSHC (This);
 
+  MemoryFence ();
+
   switch (Width) {
   case EfiUfsHcWidthUint8:
     for (Index = 0; Index < Count; Index++) {
@@ -372,6 +374,8 @@ UfsHcMmioRead (
   default:
     return EFI_INVALID_PARAMETER;
   }
+
+  MemoryFence ();
 
   return EFI_SUCCESS;
 }
@@ -410,6 +414,8 @@ UfsHcMmioWrite (
 
   Private  = UFS_HOST_CONTROLLER_PRIVATE_DATA_FROM_UFSHC (This);
 
+  MemoryFence ();
+
   switch (Width) {
   case EfiUfsHcWidthUint8:
     for (Index = 0; Index < Count; Index++) {
@@ -434,6 +440,8 @@ UfsHcMmioWrite (
   default:
     return EFI_INVALID_PARAMETER;
   }
+
+  MemoryFence ();
 
   return Status;
 }
