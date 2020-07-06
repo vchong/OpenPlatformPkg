@@ -345,6 +345,8 @@ HiKeyFastbootPlatformFlashPartition (
   EFI_DISK_IO_PROTOCOL    *DiskIo;
   UINTN                    BlockSize;
 
+  DEBUG ((DEBUG_ERROR, "magic = 0x%08x \n", Image));
+
   // Support the pseudo partition name, such as "ptable".
   if (AsciiStrCmp (PartitionName, "ptable") == 0) {
     return HiKeyFlashPtable (Size, Image);
